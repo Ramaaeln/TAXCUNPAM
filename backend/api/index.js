@@ -41,7 +41,7 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL.filter(Boolean),
+    origin: process.env.CLIENT_URL,
     credentials: true,
   }),
 );
