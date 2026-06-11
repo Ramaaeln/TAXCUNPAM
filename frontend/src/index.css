@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Chango&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import "tailwindcss";
+:root{
+  --font-chango: 'Chango', cursive;
+  --font-dm-sans: 'DM Sans', sans-serif;
+  --font-inter: 'Inter', sans-serif;
+  --font-montserrat: 'Montserrat', sans-serif;
+  --font-poppins: 'Poppins', sans-serif;
+
+/* Background */
+  --background: #0B0B0F;
+  --surface: #141824;
+  --surface-secondary: #1D2433;
+
+  /* Brand */
+  --primary: #1F3B73;
+  --secondary: #D4A24C;
+  --accent: #E68A2E;
+  --accent-hover: #C96B1A;
+  --danger: #C81D3A;
+
+  /* Text */
+  --text-primary: #F5F2E8;
+  --text-secondary: #B3B8C5;
+
+  /* Border */
+  --border: #6B5530;
+
+  /* Effects */
+  --shadow-gold: rgba(212, 162, 76, 0.25);
+  --shadow-orange: rgba(230, 138, 46, 0.25);
+}
+
+body{
+  font-family: var(--font-poppins);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
