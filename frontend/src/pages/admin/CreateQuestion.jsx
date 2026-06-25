@@ -79,7 +79,8 @@ export default function CreateQuestion() {
       points: question.points,
       options,
       correct_option: correctIndex,
-      short_answer: question.correct_answer || "",
+      // FIX: Ubah question.correct_answer menjadi question.short_answer sesuai nama kolom database Supabase
+      short_answer: question.short_answer || "", 
     });
 
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -123,7 +124,6 @@ export default function CreateQuestion() {
       return;
     }
     const updated = form.options.filter((_, i) => i !== index);
-    // Adjust correct option index if the removed index shifts it
     let correct = form.correct_option;
     if (correct >= updated.length) correct = updated.length - 1;
 
@@ -233,9 +233,8 @@ export default function CreateQuestion() {
         {/* MAIN WORKSPACE GRID */}
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           
-          {/* LEFT COLUMN: QUESTION CONTENT (LEBAR) */}
+          {/* LEFT COLUMN: QUESTION CONTENT */}
           <div className="md:col-span-2 space-y-6 bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5">
-            {/* TEXTAREA PERTANYAAN */}
             <div>
               <label className="block mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                 Isi Pertanyaan / Soal
@@ -244,7 +243,7 @@ export default function CreateQuestion() {
                 value={form.question_text}
                 onChange={(e) => setForm({ ...form, question_text: e.target.value })}
                 placeholder="Tuliskan draf soal di sini..."
-                className="w-full h-36 bg-[var(--background)] border border-slate-800/80 rounded-xl p-4 text-sm outline-none transitionfocus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10 resize-none"
+                className="w-full h-36 bg-[var(--background)] border border-slate-800/80 rounded-xl p-4 text-sm outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10 resize-none"
                 required
               />
             </div>
@@ -285,16 +284,14 @@ export default function CreateQuestion() {
                           onChange={() => setForm({ ...form, correct_option: index })}
                           className="w-4 h-4 text-emerald-500 focus:ring-emerald-500/20 accent-emerald-500 cursor-pointer"
                         />
-
                         <input
                           type="text"
                           value={option}
                           onChange={(e) => updateOption(e.target.value, index)}
                           placeholder={`Pilihan ${String.fromCharCode(65 + index)}`}
                           className="flex-1 bg-[var(--background)] border border-slate-800/80 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500/50"
-                          required
+                          required={form.question_type === "multiple_choice"}
                         />
-
                         <button
                           type="button"
                           onClick={() => removeOption(index)}
@@ -321,15 +318,14 @@ export default function CreateQuestion() {
                   onChange={(e) => setForm({ ...form, short_answer: e.target.value })}
                   placeholder="Masukkan kata kunci jawaban valid..."
                   className="w-full bg-[var(--background)] border border-slate-800/80 rounded-xl p-4 text-sm outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10"
-                  required
+                  required={form.question_type === "short_answer"}
                 />
               </div>
             )}
           </div>
 
-          {/* RIGHT COLUMN: CONTROLS & METADATA (SEMPIT) */}
+          {/* RIGHT COLUMN: CONTROLS & METADATA */}
           <div className="space-y-4 bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5">
-            {/* SELECT QUIZ */}
             <div>
               <label className="block mb-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                 Pilih Paket Quiz
@@ -347,7 +343,6 @@ export default function CreateQuestion() {
               </select>
             </div>
 
-            {/* SELECT TYPE */}
             <div>
               <label className="block mb-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                 Tipe Evaluasi
@@ -362,7 +357,6 @@ export default function CreateQuestion() {
               </select>
             </div>
 
-            {/* WEIGHT POINTS */}
             <div>
               <label className="block mb-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                 Bobot Nilai (Poin)
@@ -377,7 +371,6 @@ export default function CreateQuestion() {
               />
             </div>
 
-            {/* CONTROL ACTION BUTTONS */}
             <div className="pt-4 space-y-2.5">
               {editingId && (
                 <button
@@ -451,14 +444,23 @@ export default function CreateQuestion() {
                     {q.question_text}
                   </p>
 
-                  {q.question_options?.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2 border-l-2 border-slate-800">
-                      {q.question_options.map((option, index) => (
-                        <div key={option.id} className={`text-xs p-2 rounded-lg ${option.is_correct ? "text-emerald-400 bg-emerald-500/5 font-medium" : "text-[var(--text-secondary)] bg-slate-900/20"}`}>
-                          <span className="font-mono mr-1.5">{String.fromCharCode(65 + index)}.</span>
-                          {option.option_text}
-                        </div>
-                      ))}
+                  {/* FIX FIX FIX: RENDERING UNTUK MASING-MASING TIPE SOAL */}
+                  {q.question_type === "multiple_choice" ? (
+                    q.question_options?.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2 border-l-2 border-slate-800">
+                        {q.question_options.map((option, index) => (
+                          <div key={option.id} className={`text-xs p-2 rounded-lg ${option.is_correct ? "text-emerald-400 bg-emerald-500/5 font-medium" : "text-[var(--text-secondary)] bg-slate-900/20"}`}>
+                            <span className="font-mono mr-1.5">{String.fromCharCode(65 + index)}.</span>
+                            {option.option_text}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    // FIX: Ditambahkan container pembaca untuk menampilkan data Kunci Jawaban Isian Singkat
+                    <div className="pl-3 border-l-2 border-emerald-500 bg-emerald-500/5 p-3 rounded-xl max-w-md">
+                      <p className="text-xs text-[var(--text-secondary)] font-medium uppercase tracking-wider">Kunci Jawaban Singkat:</p>
+                      <p className="text-sm text-emerald-400 font-mono font-bold mt-0.5">{q.short_answer || "(Belum disetel)"}</p>
                     </div>
                   )}
 
