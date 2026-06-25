@@ -10,8 +10,7 @@ import {
   HelpCircle,
   Radio,
   LogOut,
-  Database,
-  Server,
+  ArrowRight,
 } from "lucide-react";
 
 import api from "../../utils/api";
@@ -22,7 +21,6 @@ export default function AdminDashboard() {
   useDocumentTitle("Admin Dashboard | TAXCUNPAM Admin");
 
   const [loading, setLoading] = useState(true);
-
   const [stats, setStats] = useState({
     totalQuiz: 0,
     participants: 0,
@@ -39,22 +37,18 @@ export default function AdminDashboard() {
     }
 
     fetchStats();
-
     const interval = setInterval(fetchStats, 5000);
-
     return () => clearInterval(interval);
   }, []);
 
   async function fetchStats() {
     try {
       const token = localStorage.getItem("adminToken");
-
       const res = await api.get("/admin/dashboard-stats", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-
       setStats(res.data);
     } catch {
       navigate("/admin");
@@ -65,321 +59,156 @@ export default function AdminDashboard() {
 
   function handleLogout() {
     localStorage.clear();
-
     navigate("/admin");
   }
 
   if (loading) {
     return (
-      <div
-        className="
-      min-h-screen
-      bg-slate-950
-      flex
-      items-center
-      justify-center
-      text-slate-400
-      "
-      >
-        Memuat dashboard...
+      <div className="min-h-screen bg-slate-950 flex flex-col gap-3 items-center justify-center text-slate-400 font-medium tracking-wide">
+        <div className="w-6 h-6 border-2 border-slate-700 border-t-[var(--secondary)] rounded-full animate-spin"></div>
+        <span>Memuat dashboard...</span>
       </div>
     );
   }
 
- return (
-  <div
-    className="
-    min-h-screen
-    bg-[var(--background)]
-    text-[var(--text-primary)]
-    p-5
-    "
-  >
-    <div className="max-w-7xl mx-auto">
-      {/* HEADER */}
-
-      <div
-        className="
-        flex
-        justify-between
-        items-center
-        flex-wrap
-        gap-4
-        mb-10
-        "
-      >
-        <div>
-          <div className="flex items-center gap-3">
-            <LayoutDashboard
-              size={32}
-              className="text-[var(--secondary)]"
-            />
-
-            <h1 className="text-4xl font-bold">
-              Admin Dashboard
-            </h1>
-          </div>
-
-          <p className="text-[var(--text-secondary)]">
-            Realtime monitoring system
-          </p>
-        </div>
-
-        <button
-          onClick={handleLogout}
-          className="
-          flex
-          items-center
-          gap-2
-          bg-[var(--danger)]
-          hover:opacity-90
-          px-5
-          py-3
-          rounded-2xl
-          font-semibold
-          transition
-          "
-        >
-          <LogOut size={18} />
-          Logout
-        </button>
-      </div>
-
-      {/* STATS */}
-
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        {[
-          [
-            <FileText size={32} />,
-            "Quiz",
-            stats.totalQuiz,
-          ],
-
-          [
-            <Users size={32} />,
-            "Participant",
-            stats.participants,
-          ],
-
-          [
-            <Trophy size={32} />,
-            "Submission",
-            stats.submissions,
-          ],
-
-          [
-            <Activity size={32} />,
-            "Active",
-            stats.activeQuiz,
-          ],
-        ].map((item, index) => (
-          <div
-            key={index}
-            className="
-            bg-[var(--surface)]
-            border
-            border-[var(--border)]
-            rounded-3xl
-            p-6
-            shadow-xl
-            hover:border-[var(--secondary)]
-            transition
-            "
-          >
-            <div className="text-[var(--secondary)]">
-              {item[0]}
+  return (
+    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased selection:bg-indigo-500/30">
+      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 pb-6 border-b border-slate-800/40">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-indigo-500/10 rounded-xl text-[var(--secondary)]">
+                <LayoutDashboard size={24} />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                Admin Dashboard
+              </h1>
             </div>
-
-            <h2
-              className="
-              text-4xl
-              font-bold
-              mt-4
-              "
-            >
-              {item[2]}
-            </h2>
-
-            <p className="text-[var(--text-secondary)]">
-              {item[1]}
+            <p className="text-sm text-[var(--text-secondary)] mt-1.5 flex items-center gap-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Realtime monitoring system
             </p>
           </div>
-        ))}
-      </div>
 
-      {/* QUICK ACCESS */}
+          <button
+            onClick={handleLogout}
+            className="group flex items-center gap-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 shadow-sm"
+          >
+            <LogOut size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            Logout
+          </button>
+        </div>
 
-      <div
-        className="
-        bg-[var(--surface)]
-        border
-        border-[var(--border)]
-        rounded-3xl
-        p-6
-        shadow-xl
-        "
-      >
-        <h2
-          className="
-          text-2xl
-          font-bold
-          mb-6
-          "
-        >
-          Quick Access
-        </h2>
-
-        <div
-          className="
-          grid
-          md:grid-cols-3
-          lg:grid-cols-4
-          gap-5
-          "
-        >
+        {/* STATS CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {[
-            {
-              icon: <FileText size={40} />,
-              title: "Quiz",
-              desc: "Kelola quiz",
-              path: "/admin/create-quiz",
-            },
-
-            {
-              icon: <Ticket size={40} />,
-              title: "Token",
-              desc: "Generate token",
-              path: "/admin/tokens",
-            },
-
-            {
-              icon: <Trophy size={40} />,
-              title: "Leaderboard",
-              desc: "Ranking peserta",
-              path: "/admin/leaderboard",
-            },
-
-            {
-              icon: <Users size={40} />,
-              title: "Participant",
-              desc: "Data peserta",
-              path: "/admin/participants",
-            },
-
-            {
-              icon: <HelpCircle size={40} />,
-              title: "Question",
-              desc: "Kelola soal",
-              path: "/admin/questions",
-            },
-
-            {
-              icon: <Radio size={40} />,
-              title: "Live Monitor",
-              desc: "Pantau realtime",
-              path: "/admin/live-monitor",
-            },
-          ].map((menu, index) => (
-            <button
+            { icon: <FileText size={24} />, label: "Total Quiz", value: stats.totalQuiz, color: "from-blue-500/10 to-transparent" },
+            { icon: <Users size={24} />, label: "Participants", value: stats.participants, color: "from-purple-500/10 to-transparent" },
+            { icon: <Trophy size={24} />, label: "Submissions", value: stats.submissions, color: "from-amber-500/10 to-transparent" },
+            { icon: <Activity size={24} />, label: "Active Quiz", value: stats.activeQuiz, color: "from-emerald-500/10 to-transparent" },
+          ].map((item, index) => (
+            <div
               key={index}
-              onClick={() =>
-                navigate(menu.path)
-              }
-              className="
-              bg-[var(--background)]
-              border
-              border-[var(--border)]
-              rounded-2xl
-              p-5
-              hover:scale-105
-              hover:border-[var(--secondary)]
-              hover:bg-[var(--surface-secondary)]
-              transition
-              text-left
-              "
+              className="relative overflow-hidden bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5 hover:border-slate-700 transition-all duration-300"
             >
-              <div
-                className="
-                text-[var(--secondary)]
-                mb-4
-                "
-              >
-                {menu.icon}
+              <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-40 pointer-events-none`} />
+              <div className="relative flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                    {item.label}
+                  </p>
+                  <h2 className="text-3xl font-bold mt-2 tracking-tight">
+                    {item.value.toLocaleString()}
+                  </h2>
+                </div>
+                <div className="p-2.5 bg-slate-800/50 rounded-xl text-[var(--secondary)] border border-slate-700/30">
+                  {item.icon}
+                </div>
               </div>
-
-              <h2
-                className="
-                font-bold
-                text-lg
-                "
-              >
-                {menu.title}
-              </h2>
-
-              <p
-                className="
-                text-sm
-                text-[var(--text-secondary)]
-                mt-1
-                "
-              >
-                {menu.desc}
-              </p>
-            </button>
+            </div>
           ))}
         </div>
-      </div>
 
-      {/* SYSTEM STATUS */}
+        {/* LOWER SECTION (GRID 2 SECTIONS) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* QUICK ACCESS (Lebih Lebar) */}
+          <div className="lg:col-span-2 bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold tracking-tight">Quick Access</h2>
+              <p className="text-xs text-[var(--text-secondary)]">Akses cepat ke semua fitur manajemen inti</p>
+            </div>
 
-      <div
-        className="
-        mt-10
-        bg-[var(--surface)]
-        border
-        border-[var(--border)]
-        rounded-3xl
-        p-6
-        shadow-xl
-        "
-      >
-        <h2
-          className="
-          text-xl
-          font-bold
-          mb-4
-          "
-        >
-          System Status
-        </h2>
-
-        <div className="space-y-3 text-[var(--text-secondary)]">
-          <div className="flex items-center gap-2">
-            <Server
-              size={16}
-              className="text-[var(--secondary)]"
-            />
-            API Online
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { icon: <FileText size={22} />, title: "Quiz", desc: "Kelola pembuatan & list kuis", path: "/admin/create-quiz" },
+                { icon: <Ticket size={22} />, title: "Token", desc: "Generate & pantau token masuk", path: "/admin/tokens" },
+                { icon: <Trophy size={22} />, title: "Leaderboard", desc: "Lihat ringkasan ranking peserta", path: "/admin/leaderboard" },
+                { icon: <Users size={22} />, title: "Participant", desc: "Manajemen basis data peserta", path: "/admin/participants" },
+                { icon: <HelpCircle size={22} />, title: "Question", desc: "Bank soal dan kunci jawaban", path: "/admin/questions" },
+                { icon: <Radio size={22} />, title: "Live Monitor", desc: "Pantau aktivitas ujian langsung", path: "/admin/live-monitor" },
+              ].map((menu, index) => (
+                <button
+                  key={index}
+                  onClick={() => navigate(menu.path)}
+                  className="group relative flex items-start gap-4 bg-[var(--background)] border border-slate-800/50 rounded-xl p-4 text-left transition-all duration-300 hover:border-indigo-500/40 hover:bg-slate-900/40"
+                >
+                  <div className="p-2.5 bg-slate-800/60 rounded-lg text-[var(--secondary)] group-hover:scale-105 transition-transform">
+                    {menu.icon}
+                  </div>
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="font-semibold text-sm tracking-wide text-[var(--text-primary)] group-hover:text-indigo-400 transition-colors">
+                      {menu.title}
+                    </h3>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1">
+                      {menu.desc}
+                    </p>
+                  </div>
+                  <ArrowRight size={14} className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-indigo-400" />
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Database
-              size={16}
-              className="text-[var(--secondary)]"
-            />
-            Database Connected
+          {/* OVERVIEW SIDEBAR */}
+          <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5 flex flex-col justify-between">
+            <div>
+              <div className="mb-6">
+                <h2 className="text-lg font-bold tracking-tight">Overview Info</h2>
+                <p className="text-xs text-[var(--text-secondary)]">Ringkasan cepat aktivitas saat ini</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-[var(--background)] border border-slate-800/50 rounded-xl">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-semibold text-[var(--text-secondary)]">Status Kuis Aktif</span>
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium">Live</span>
+                  </div>
+                  <p className="text-xl font-bold tracking-tight">{stats.activeQuiz} Kuis Berjalan</p>
+                </div>
+
+                <div className="p-4 bg-[var(--background)] border border-slate-800/50 rounded-xl">
+                  <span className="text-xs font-semibold text-[var(--text-secondary)] block mb-1">Rasio Partisipan</span>
+                  <p className="text-sm font-medium">
+                    {stats.submissions > 0 ? ((stats.submissions / stats.participants) * 100).toFixed(1) : 0}% Penyelesaian
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-800/40 text-[10px] text-[var(--text-secondary)] text-center font-mono">
+              Auto-sync teratur aktif (5s)
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Activity
-              size={16}
-              className="text-[var(--secondary)]"
-            />
-            Auto Refresh: 5 sec
-          </div>
         </div>
+
       </div>
     </div>
-  </div>
-);
+  );
 }

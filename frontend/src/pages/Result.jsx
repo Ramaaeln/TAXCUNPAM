@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trophy, AlertCircle, LogOut } from "lucide-react";
+import { AlertCircle, LogOut, CheckCircle } from "lucide-react";
 import logo from "../assets/MASCOT.png";
-
 import api from "../utils/api";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
@@ -11,9 +10,7 @@ export default function Result() {
   useDocumentTitle("Result | TAXCUNPAM 2026");
 
   const [result, setResult] = useState(null);
-
   const [loading, setLoading] = useState(true);
-
   const autoSubmitted = sessionStorage.getItem("quizAutoSubmitted");
 
   async function fetchResult() {
@@ -47,479 +44,70 @@ export default function Result() {
     if (autoSubmitted) {
       sessionStorage.removeItem("quizAutoSubmitted");
     }
-  }, []);
-
-  function formatDuration() {
-    if (!result?.started_at || !result?.submitted_at) {
-      return "-";
-    }
-
-    const start = new Date(result.started_at);
-
-    const end = new Date(result.submitted_at);
-
-    const seconds = Math.floor((end - start) / 1000);
-
-    const minutes = Math.floor(seconds / 60);
-
-    const remaining = seconds % 60;
-
-    return `${minutes}m ${remaining}s`;
-  }
+  }, [autoSubmitted]);
 
   if (loading) {
-  return (
-    <div
-      className="
-      min-h-screen
-      bg-[var(--background)]
-      flex
-      flex-col
-      items-center
-      justify-center
-      gap-5
-      px-4
-      "
-    >
-      <img
-        src={logo}
-        alt="Tax Center UNPAM"
-        className="
-        w-24
-        h-24
-        object-contain
-        drop-shadow-2xl
-        "
-      />
-
-      <div
-        className="
-        w-14
-        h-14
-        rounded-full
-        border-4
-        border-[var(--border)]
-        border-t-[var(--secondary)]
-        animate-spin
-        "
-      />
-
-      <div className="text-center">
-        <h2
-          className="
-          text-xl
-          font-semibold
-          text-[var(--text-primary)]
-          "
-        >
-          Memuat Hasil...
-        </h2>
-
-        <p
-          className="
-          mt-2
-          text-sm
-          text-[var(--text-secondary)]
-          "
-        >
-          Mohon tunggu sebentar.
-        </p>
-      </div>
-    </div>
-  );
-}
-
- if (!result) {
-  return (
-    <div
-      className="
-      min-h-screen
-      bg-[var(--background)]
-      flex
-      items-center
-      justify-center
-      px-4
-      "
-    >
-      <div
-        className="
-        w-full
-        max-w-md
-        bg-[var(--surface)]
-        border
-        border-[var(--border)]
-        rounded-3xl
-        p-8
-        text-center
-        shadow-xl
-        "
-      >
-        <AlertCircle
-          size={56}
-          className="
-          mx-auto
-          mb-5
-          text-[var(--danger)]
-          "
-        />
-
-        <h2
-          className="
-          text-2xl
-          font-bold
-          text-[var(--text-primary)]
-          "
-        >
-          Hasil Tidak Ditemukan
-        </h2>
-
-        <p
-          className="
-          mt-3
-          text-[var(--text-secondary)]
-          "
-        >
-          Data hasil quiz tidak tersedia atau sudah tidak dapat diakses.
-        </p>
-
-        <button
-          onClick={() => navigate("/")}
-          className="
-          mt-6
-          w-full
-          py-3
-          rounded-2xl
-          bg-[var(--secondary)]
-          hover:bg-[var(--accent)]
-          text-[var(--background)]
-          font-semibold
-          transition-all
-          duration-300
-          "
-        >
-          Kembali ke Halaman Utama
-        </button>
-      </div>
-    </div>
-  );
-}
-
-  return (
-  <div
-    className="
-    min-h-screen
-    bg-[var(--background)]
-    flex
-    items-center
-    justify-center
-    p-5
-    text-[var(--text-primary)]
-    "
-  >
-    <div
-      className="
-      w-full
-      max-w-4xl
-      bg-[var(--surface)]
-      border
-      border-[var(--border)]
-      rounded-3xl
-      p-8
-      shadow-xl
-      "
-    >
-      {/* HEADER */}
-      <div
-        className="
-        text-center
-        mb-10
-        "
-      >
-        <div className="flex justify-center mb-4">
-          <Trophy
-            size={52}
-            className="
-            text-[var(--secondary)]
-            "
-          />
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center gap-4 px-4 antialiased">
+        <img src={logo} alt="Tax Center UNPAM" className="w-20 h-20 object-contain drop-shadow-2xl animate-pulse" />
+        <div className="w-10 h-10 border-4 border-slate-800 border-t-[var(--secondary)] rounded-full animate-spin" />
+        <div className="text-center">
+          <h2 className="text-base font-bold text-[var(--text-primary)]">Memuat Ringkasan Sesi...</h2>
+          <p className="text-xs text-[var(--text-secondary)] mt-1">Harap tunggu, mengamankan data pengerjaan Anda.</p>
         </div>
-
-        <h1
-          className="
-          text-4xl
-          font-bold
-          mb-3
-          "
-        >
-          Quiz Finished
-        </h1>
-
-        <p
-          className="
-          text-[var(--text-secondary)]
-          "
-        >
-          {result?.quizzes?.title}
-        </p>
       </div>
+    );
+  }
 
-      {/* AUTO SUBMIT */}
-      {autoSubmitted && (
-        <div
-          className="
-          mb-8
-          flex
-          items-start
-          gap-3
-          p-4
-          rounded-2xl
-          bg-[var(--danger)]/10
-          border
-          border-[var(--danger)]/20
-          text-[var(--danger)]
-          "
-        >
-          <AlertCircle
-            size={18}
-            className="
-            mt-0.5
-            shrink-0
-            "
-          />
-
-          <div>
-            <p className="font-semibold">
-              Quiz dikirim otomatis
-            </p>
-
-            <p
-              className="
-              text-sm
-              mt-1
-              "
-            >
-              Sistem mendeteksi pelanggaran aturan ujian.
-            </p>
+  return (
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4 py-12 antialiased">
+      <div className={`w-full max-w-md bg-[var(--surface)] border ${
+        autoSubmitted ? 'border-rose-500/30 shadow-rose-950/5' : 'border-slate-800/60 shadow-black/10'
+      } rounded-2xl p-6 sm:p-8 text-center shadow-xl`}>
+        
+        {/* CONDITION STATE CHIP */}
+        <div className="flex justify-center mb-5">
+          <div className={`p-4 rounded-full border ${
+            autoSubmitted 
+              ? 'bg-rose-500/10 text-rose-400 border-rose-500/10' 
+              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10'
+          }`}>
+            {autoSubmitted ? <AlertCircle size={36} /> : <CheckCircle size={36} />}
           </div>
         </div>
-      )}
 
-      {/* SCORE */}
-      <div
-        className="
-        bg-[var(--secondary)]
-        text-[var(--background)]
-        rounded-3xl
-        p-10
-        text-center
-        mb-8
-        shadow-lg
-        "
-      >
-        <p
-          className="
-          opacity-80
-          mb-3
-          "
-        >
-          Final Score
+        {/* BRANDING MASCOT */}
+        <img src={logo} alt="Tax Center UNPAM" className="w-16 h-16 mx-auto object-contain drop-shadow-md mb-4 pointer-events-none select-none" />
+
+        {/* NOTIFICATION TYPOGRAPHY */}
+        <h1 className={`text-xl sm:text-2xl font-extrabold tracking-tight mb-2.5 ${
+          autoSubmitted ? 'text-rose-400' : 'text-[var(--text-primary)]'
+        }`}>
+          {autoSubmitted ? "Sesi Ditutup Secara Paksa" : "Sesi Ujian Selesai!"}
+        </h1>
+
+        <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed mb-8 opacity-95">
+          {autoSubmitted 
+            ? "Sistem mendeteksi adanya tindakan pelanggaran integritas (Membuka DevTools / Keluar dari layar penuh / Membuka tab ganda). Lembar ujian Anda otomatis dibekukan dan disimpan ke server basis data."
+            : "Terima kasih telah mengikuti kompetisi ini secara jujur dan suportif. Lembar pengerjaan Anda berhasil diarsipkan. Mohon tunggu informasi pengumuman selanjutnya."
+          }
         </p>
 
-        <h1
-          className="
-          text-7xl
-          font-bold
-          drop-shadow-[0_0_20px_rgba(212,162,76,0.35)]
-          "
-        >
-          {result.score}
-        </h1>
-      </div>
-
-      {/* STATS */}
-      <div
-        className="
-        grid
-        md:grid-cols-2
-        gap-5
-        "
-      >
-        <div
-          className="
-          bg-[var(--background)]
-          border
-          border-[var(--border)]
-          p-6
-          rounded-2xl
-          "
-        >
-          <p className="text-[var(--text-secondary)]">
-            Peserta
-          </p>
-
-          <h2
-            className="
-            text-2xl
-            font-bold
-            mt-2
-            "
-          >
-            {result.participant_name}
-          </h2>
-        </div>
-
-        <div
-          className="
-          bg-[var(--background)]
-          border
-          border-[var(--border)]
-          p-6
-          rounded-2xl
-          "
-        >
-          <p className="text-[var(--text-secondary)]">
-            Durasi
-          </p>
-
-          <h2
-            className="
-            text-2xl
-            font-bold
-            mt-2
-            "
-          >
-            {formatDuration()}
-          </h2>
-        </div>
-
-        <div
-          className="
-          bg-[var(--secondary)]/10
-          border
-          border-[var(--secondary)]/20
-          p-6
-          rounded-2xl
-          "
-        >
-          <p className="text-[var(--secondary)]">
-            Jawaban Benar
-          </p>
-
-          <h2
-            className="
-            text-4xl
-            font-bold
-            mt-3
-            text-[var(--secondary)]
-            "
-          >
-            {result.correct_answers}
-          </h2>
-        </div>
-
-        <div
-          className="
-          bg-[var(--danger)]/10
-          border
-          border-[var(--danger)]/20
-          p-6
-          rounded-2xl
-          "
-        >
-          <p className="text-[var(--danger)]">
-            Jawaban Salah
-          </p>
-
-          <h2
-            className="
-            text-4xl
-            font-bold
-            mt-3
-            text-[var(--danger)]
-            "
-          >
-            {result.wrong_answers}
-          </h2>
-        </div>
-
-        <div
-          className="
-          md:col-span-2
-          bg-[var(--accent)]/10
-          border
-          border-[var(--accent)]/20
-          p-6
-          rounded-2xl
-          "
-        >
-          <p className="text-[var(--accent)]">
-            Tidak Dijawab
-          </p>
-
-          <h2
-            className="
-            text-4xl
-            font-bold
-            mt-3
-            text-[var(--accent)]
-            "
-          >
-            {result.unanswered}
-          </h2>
-        </div>
-      </div>
-
-      {/* BUTTON */}
-      <div
-        className="
-        mt-10
-        grid
-        gap-4
-        "
-      >
-        <button
-          onClick={() => navigate("/leaderboard")}
-          className="
-          w-full
-          bg-[var(--secondary)]
-          hover:bg-[var(--accent)]
-          text-[var(--background)]
-          py-4
-          rounded-2xl
-          font-semibold
-          shadow-lg
-          hover:shadow-[0_0_25px_rgba(212,162,76,0.25)]
-          transition-all
-          duration-300
-          "
-        >
-          Lihat Leaderboard
-        </button>
-
+        {/* EXIT DESTRUCTIVE ACTION BUTTON */}
         <button
           onClick={() => {
             localStorage.clear();
+            sessionStorage.clear();
             navigate("/");
           }}
-          className="
-          w-full
-          flex
-          items-center
-          justify-center
-          gap-2
-          bg-[var(--surface-secondary)]
-          hover:bg-[var(--primary)]
-          py-4
-          rounded-2xl
-          font-semibold
-          transition
-          "
+          className={`w-full flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-all shadow-sm text-white ${
+            autoSubmitted ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-800 border border-slate-700 hover:bg-slate-700'
+          }`}
         >
-          <LogOut size={18} />
-          Keluar
+          <LogOut size={14} />
+          <span>Keluar & Selesai</span>
         </button>
       </div>
     </div>
-  </div>
-);
+  );
 }

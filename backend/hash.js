@@ -1,6 +1,9 @@
-export function hashToken(token) {
-  return crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
-}
+import bcrypt from "bcryptjs";
+
+const hash =
+  await bcrypt.hash(
+    "taxcunpam",
+    10
+  );
+
+console.log(hash);

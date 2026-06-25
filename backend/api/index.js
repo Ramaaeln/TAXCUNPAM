@@ -29,7 +29,7 @@ import dashboardStats from "./admin/dashboard-stats.js";
 import getQuestionsRoute from "./admin/get-questions.js";
 import deleteQuestion from "./admin/delete-question.js";
 import updateQuestion from "./admin/update-question.js";
-
+import reviewAnswersRoute from "./admin/review-answers.js"
 const app = express();
 app.set("trust proxy", 1);
 app.use(
@@ -119,6 +119,7 @@ app.use("/api/admin/dashboard-stats", dashboardStats);
 app.use("/api/admin/questions",getQuestionsRoute,);
 app.use("/api/admin/delete-question",deleteQuestion);
 app.use("/api/admin/update-question",updateQuestion);
+app.use("/api/admin/review-answers", reviewAnswersRoute);
 
 app.use("/api/quiz/questions", questionRoute);
 app.use("/api/quiz/autosave", autosaveRoute);
