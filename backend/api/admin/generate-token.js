@@ -6,10 +6,7 @@ import { verifyAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// ==========================================
 // HASH TOKEN
-// ==========================================
-
 function hashToken(token) {
   return crypto
     .createHash("sha256")
@@ -17,13 +14,10 @@ function hashToken(token) {
     .digest("hex");
 }
 
-// ==========================================
 // GENERATE TOKEN
-// ==========================================
-
 function generatePlainToken() {
   return (
-    "TAXCUNPAM-" +
+    "UTCBT-" +
     crypto
       .randomBytes(4)
       .toString("hex")
@@ -31,10 +25,7 @@ function generatePlainToken() {
   );
 }
 
-// ==========================================
 // GENERATE TOKENS ROUTE
-// ==========================================
-
 router.post(
   "/",
   verifyAdmin,
@@ -49,10 +40,7 @@ router.post(
         expires_in_minutes = 1440
       } = req.body;
 
-      // ==========================================
       // VALIDATION
-      // ==========================================
-
       if (!quiz_id || !count) {
 
         return res.status(400).json({
@@ -62,22 +50,15 @@ router.post(
         });
       }
 
-      // ==========================================
       // GENERATE TOKENS
-      // ==========================================
-
       const tokensToInsert = [];
-
       const plainTokens = [];
 
       for (let i = 0; i < count; i++) {
-
         const plainToken =
           generatePlainToken();
-
         const hashedToken =
           hashToken(plainToken);
-
         const expiresAt =
           new Date(
             Date.now() +
@@ -97,10 +78,7 @@ router.post(
         });
       }
 
-      // ==========================================
       // INSERT DATABASE
-      // ==========================================
-
       const {
         data,
         error
@@ -120,10 +98,7 @@ router.post(
         });
       }
 
-      // ==========================================
       // MERGE RESPONSE
-      // ==========================================
-
       const responseTokens =
         data.map((item, index) => ({
           id: item.id,
