@@ -7,7 +7,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 export default function ReviewAnswers() {
   const { attemptId } = useParams();
   const navigate = useNavigate();
-  useDocumentTitle("Review Jawaban Peserta | Admin");
+  useDocumentTitle("Review Jawaban Peserta | UTCBT");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

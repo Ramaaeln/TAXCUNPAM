@@ -8,7 +8,7 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 
 export default function Login() {
   const navigate = useNavigate();
-  useDocumentTitle("Login | TAXCUNPAM 2026");
+  useDocumentTitle("UTCBT 2026");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

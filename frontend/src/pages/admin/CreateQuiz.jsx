@@ -8,7 +8,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function CreateQuiz() {
   const navigate = useNavigate();
-  useDocumentTitle("Create Quiz | TAXCUNPAM Admin");
+  useDocumentTitle("Create Quiz | UTCBT");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("error");

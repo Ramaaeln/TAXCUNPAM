@@ -9,7 +9,7 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 
 export default function Quiz() {
   const navigate = useNavigate();
-  useDocumentTitle("Quiz | TAXCUNPAM 2026");
+  useDocumentTitle("Quiz | UTCBT");
 
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);

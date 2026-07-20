@@ -15,7 +15,7 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 
 export default function Leaderboard() {
   const navigate = useNavigate();
-    useDocumentTitle("Leaderboard | TAXCUNPAM 2026");
+    useDocumentTitle("Leaderboard | UTCBT");
   
 
   const [leaderboard, setLeaderboard] = useState([]);

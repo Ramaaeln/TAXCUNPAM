@@ -18,7 +18,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  useDocumentTitle("Admin Dashboard | TAXCUNPAM Admin");
+  useDocumentTitle("Dashboard | UTCBT");
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({

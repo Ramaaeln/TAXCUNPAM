@@ -16,7 +16,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function GenerateToken() {
   const navigate = useNavigate();
-  useDocumentTitle("Generate Token | TAXCUNPAM Admin");
+  useDocumentTitle("Generate Token | UTCBT");
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");

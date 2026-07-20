@@ -19,7 +19,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function Participants() {
   const navigate = useNavigate();
-  useDocumentTitle("Participants | TAXCUNPAM Admin");
+  useDocumentTitle("Participants | UTCBT");
 
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState([]);

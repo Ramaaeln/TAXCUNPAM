@@ -15,7 +15,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function LiveMonitor() {
   const navigate = useNavigate();
-  useDocumentTitle("Live Monitor | TAXCUNPAM Admin");
+  useDocumentTitle("Live Monitor | UTCBT");
 
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState([]);

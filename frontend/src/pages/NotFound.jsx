@@ -5,7 +5,7 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 
 export default function NotFound() {
   const navigate = useNavigate();
-  useDocumentTitle("404 - Halaman Tidak Ditemukan | TAXCUNPAM 2026");
+  useDocumentTitle("404 - Halaman Tidak Ditemukan | UTCBT");
 
   return (
     <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center p-4 antialiased selection:bg-indigo-500/30">

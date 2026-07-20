@@ -13,7 +13,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  useDocumentTitle("Admin Login | TAXCUNPAM Admin");
+  useDocumentTitle("Login | UTCBT");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

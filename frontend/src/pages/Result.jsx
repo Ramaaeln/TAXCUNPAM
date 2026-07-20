@@ -7,7 +7,7 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 
 export default function Result() {
   const navigate = useNavigate();
-  useDocumentTitle("Result | TAXCUNPAM 2026");
+  useDocumentTitle("Result | UTCBT");
 
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -7,7 +7,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 export default function CreateQuestion() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  useDocumentTitle("Create Question | TAXCUNPAM Admin");
+  useDocumentTitle("Create Question | UTCBT");
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("error");

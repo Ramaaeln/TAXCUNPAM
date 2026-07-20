@@ -17,7 +17,7 @@ import useDocumentTitle from "../../hooks/useDocumentTitle";
 
 export default function Leaderboard() {
   const navigate = useNavigate();
-  useDocumentTitle("Leaderboard | TAXCUNPAM Admin");
+  useDocumentTitle("Leaderboard | UTCBT");
 
   const [loading, setLoading] = useState(false);
   const [quizzes, setQuizzes] = useState([]);
