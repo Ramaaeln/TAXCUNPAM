@@ -118,7 +118,7 @@ export default function Participants() {
         {/* BACK ACTION */}
         <div className="mb-6">
           <button
-            onClick={() => navigate("/admin/dashboard")}
+            onClick={() => navigate("/utcbt-internal/dashboard")}
             className="flex items-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm"
           >
             <ArrowLeft size={14} />
@@ -284,7 +284,7 @@ export default function Participants() {
                       {/* DRILL ACTIONS ROW */}
                       <td className="p-4 text-center whitespace-nowrap">
                         <button
-                          onClick={() => navigate(`/admin/review-answers/${participant.id}`)}
+                          onClick={() => navigate(`/utcbt-internal/review-answers/${participant.id}`)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-800 bg-slate-900 text-slate-300 hover:text-indigo-400 hover:border-indigo-500/30 transition-all shadow-sm"
                         >
                           <Eye size={12} />

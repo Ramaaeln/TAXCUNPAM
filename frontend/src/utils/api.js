@@ -6,7 +6,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const isAdmin = window.location.pathname.startsWith("/admin");
+    const isAdmin = window.location.pathname.startsWith("/utcbt-internal");
     const token = isAdmin 
       ? localStorage.getItem("adminToken") 
       : localStorage.getItem("accessToken");
@@ -25,10 +25,10 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       const currentPath = window.location.pathname;
 
-      if (currentPath.startsWith("/admin")) {
-        if (currentPath !== "/admin" && currentPath !== "/admin/") {
+      if (currentPath.startsWith("/utcbt-internal")) {
+        if (currentPath !== "/utcbt-internal" && currentPath !== "/utcbt-internal/") {
           localStorage.removeItem("adminToken");
-          window.location.href = "/admin";
+          window.location.href = "/utcbt-internal";
         }
       } 
       else {

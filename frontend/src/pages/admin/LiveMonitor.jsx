@@ -82,7 +82,7 @@ export default function LiveMonitor() {
           <div>
             <button
               type="button"
-              onClick={() => navigate("/admin/dashboard")}
+              onClick={() => navigate("/utcbt-internal/dashboard")}
               className="mb-4 flex items-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm"
             >
               <ArrowLeft size={14} />
@@ -241,7 +241,7 @@ export default function LiveMonitor() {
                         <td className="p-4 text-center whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => navigate(`/admin/review-answers/${p.id}`)}
+                            onClick={() => navigate(`/utcbt-internal/review-answers/${p.id}`)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-[var(--secondary)] hover:text-[var(--background)] hover:border-[var(--secondary)] transition-all duration-200"
                           >
                             <Eye size={13} />

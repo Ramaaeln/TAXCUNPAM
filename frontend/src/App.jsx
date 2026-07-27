@@ -44,7 +44,7 @@ export default function App() {
         <Route path="/result" element={<Navigate to="/" replace />} />
 
         <Route
-          path="/admin"
+          path="/utcbt-internal"
           element={
             <GuestAdminRoute>
               <AdminLogin />
@@ -53,7 +53,7 @@ export default function App() {
         />
 
         <Route
-          path="/admin/dashboard"
+          path="/utcbt-internal/dashboard"
           element={
             <ProtectedAdminRoute>
               <AdminDashboard />
@@ -61,7 +61,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/create-quiz"
+          path="/utcbt-internal/create-quiz"
           element={
             <ProtectedAdminRoute>
               <CreateQuiz />
@@ -69,7 +69,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/questions"
+          path="/utcbt-internal/questions"
           element={
             <ProtectedAdminRoute>
               <CreateQuestion />
@@ -77,7 +77,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/tokens"
+          path="/utcbt-internal/tokens"
           element={
             <ProtectedAdminRoute>
               <GenerateToken />
@@ -85,7 +85,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/live-monitor"
+          path="/utcbt-internal/live-monitor"
           element={
             <ProtectedAdminRoute>
               <LiveMonitor />
@@ -93,7 +93,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/leaderboard"
+          path="/utcbt-internal/leaderboard"
           element={
             <ProtectedAdminRoute>
               <LeaderboardAdmin />
@@ -101,7 +101,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/participants"
+          path="/utcbt-internal/participants"
           element={
             <ProtectedAdminRoute>
               <Participants />
@@ -109,7 +109,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/review-answers/:attemptId"
+          path="/utcbt-internal/review-answers/:attemptId"
           element={
             <ProtectedAdminRoute>
               <ReviewAnswers />

@@ -11,7 +11,7 @@ export default function GuestAdminRoute({
   if (token) {
     return (
       <Navigate
-        to="/admin/dashboard"
+        to="/utcbt-internal/dashboard"
         replace
       />
     );

@@ -29,7 +29,11 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
       });
     }
 
-    if (["submitted", "timeout", "disqualified", "auto_submitted"].includes(attempt.status)) {
+    if (
+      ["submitted", "timeout", "disqualified", "auto_submitted"].includes(
+        attempt.status,
+      )
+    ) {
       return res.json({
         success: true,
         message: "Quiz already finished",
@@ -38,7 +42,8 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
 
     const { data: answers, error: answersError } = await supabase
       .from("quiz_answers")
-      .select(`
+      .select(
+        `
         id,
         question_id,
         selected_option_id,
@@ -53,7 +58,8 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
           id,
           is_correct
         )
-      `)
+      `,
+      )
       .eq("attempt_id", attemptId);
 
     if (answersError) {
@@ -82,8 +88,14 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
           wrongAnswers++;
         }
       } else {
-        const userAnswer = answer?.text_answer?.trim()?.toLowerCase()?.replace(/\s+/g, " ");
-        const correctAnswer = answer?.questions?.short_answer?.trim()?.toLowerCase()?.replace(/\s+/g, " ");
+        const userAnswer = answer?.text_answer
+          ?.trim()
+          ?.toLowerCase()
+          ?.replace(/\s+/g, " ");
+        const correctAnswer = answer?.questions?.short_answer
+          ?.trim()
+          ?.toLowerCase()
+          ?.replace(/\s+/g, " ");
 
         if (userAnswer && correctAnswer && userAnswer === correctAnswer) {
           score += answer?.questions?.points || 0;
@@ -109,7 +121,7 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
     }
 
     const unanswered = totalQuestions - safeAnswers.length;
-
+    const finalStatus = req.isTimeout ? "timeout" : "submitted";
     const { error: updateError } = await supabase
       .from("quiz_attempts")
       .update({
@@ -118,6 +130,7 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
         correct_answers: correctAnswers,
         wrong_answers: wrongAnswers,
         unanswered,
+        status: finalStatus,
         submitted_at: new Date(),
         status: "submitted",
       })
@@ -141,7 +154,6 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
         unanswered,
       },
     });
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({

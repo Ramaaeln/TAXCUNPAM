@@ -39,7 +39,7 @@ export default function AdminLogin() {
       localStorage.setItem("adminToken", data.accessToken);
       localStorage.setItem("adminUser", JSON.stringify(data.user));
 
-      navigate("/admin/dashboard");
+      navigate("/utcbt-internal/dashboard");
     } catch (error) {
       setError(
         error.response?.data?.message || "Login gagal. Silakan coba lagi."
@@ -67,7 +67,7 @@ export default function AdminLogin() {
           </span>
 
           <h1 className="text-3xl font-extrabold tracking-tight mt-4 text-[var(--text-primary)]">
-            Admin Panel
+            UTCBT Panel
           </h1>
 
           <p className="text-sm text-[var(--text-secondary)] text-center mt-1.5 max-w-xs">

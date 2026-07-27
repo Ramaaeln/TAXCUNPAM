@@ -16,7 +16,7 @@ export default function CreateQuiz() {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    duration_minutes: 60,
+    duration_minutes: 1, 
     start_time: "",
     end_time: "",
   });
@@ -34,49 +34,49 @@ export default function CreateQuiz() {
     }));
   }, [startDate, calculatedEndDate]);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setMessage("");
+ async function handleSubmit(e) {
+  e.preventDefault();
+  setMessage("");
 
-    if (!startDate) {
-      setMessageType("error");
-      setMessage("Silakan tentukan waktu mulai kuis.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("adminToken");
-
-      await api.post("/admin/create-quiz", form, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setMessageType("success");
-      setMessage("Quiz berhasil dibuat");
-
-      setTimeout(() => {
-        navigate("/admin/dashboard");
-      }, 1200);
-    } catch (err) {
-      setMessageType("error");
-      setMessage(err.response?.data?.message || "Gagal membuat quiz");
-    } finally {
-      setLoading(false);
-    }
+  if (!startDate) {
+    setMessageType("error");
+    setMessage("Silakan tentukan waktu mulai kuis.");
+    return;
   }
 
+  try {
+    setLoading(true);
+    const token = localStorage.getItem("adminToken");
+
+    await api.post("/admin/create-quiz", form, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    setMessageType("success");
+    setMessage("Quiz berhasil dibuat! Mengalihkan ke dashboard...");
+
+    
+    setTimeout(() => {
+      window.location.href = "/utcbt-internal/dashboard";
+    }, 1000);
+
+  } catch (err) {
+    setLoading(false);
+    setMessageType("error");
+    setMessage(err.response?.data?.message || "Gagal membuat quiz");
+  }
+}
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-8 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         
-        {/* BACK ACTION */}
+        
         <div className="mb-6">
           <button
             type="button"
-            onClick={() => navigate("/admin/dashboard")}
+            onClick={() => navigate("/utcbt-internal/dashboard")}
             className="flex items-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm"
           >
             <ArrowLeft size={14} />
@@ -84,10 +84,10 @@ export default function CreateQuiz() {
           </button>
         </div>
 
-        {/* COMPONENT BOX */}
+        
         <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 sm:p-8 shadow-xl shadow-black/5">
           
-          {/* HEADER */}
+          
           <div className="mb-8 pb-6 border-b border-slate-800/40">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-indigo-500/10 rounded-xl text-[var(--secondary)]">
@@ -100,7 +100,7 @@ export default function CreateQuiz() {
             </p>
           </div>
 
-          {/* NOTIFICATION MESSAGE */}
+
           {message && (
             <div
               className={`mb-6 flex items-start gap-3 p-4 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${
@@ -155,7 +155,7 @@ export default function CreateQuiz() {
                 <Clock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] group-focus-within:text-indigo-400" />
                 <input
                   type="number"
-                  min="5"
+                  min="1" 
                   value={form.duration_minutes}
                   onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) })}
                   className="w-full bg-[var(--background)] border border-slate-800/80 rounded-xl pl-11 pr-4 py-2.5 text-sm outline-none focus:border-indigo-500/50"
@@ -165,7 +165,8 @@ export default function CreateQuiz() {
               
               {/* FAST SELECT CHIPS */}
               <div className="flex gap-2 mt-2.5 flex-wrap">
-                {[30, 60, 90, 120].map((mins) => (
+                
+                {[1, 30, 60, 90, 120].map((mins) => (
                   <button
                     key={mins}
                     type="button"

@@ -132,7 +132,7 @@ export default function Leaderboard() {
         <div className="mb-6">
           <button
             type="button"
-            onClick={() => navigate("/admin/dashboard")}
+            onClick={() => navigate("/utcbt-internal/dashboard")}
             className="flex items-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm"
           >
             <ArrowLeft size={14} />

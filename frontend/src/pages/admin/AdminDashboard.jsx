@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem("adminToken");
 
     if (!token) {
-      navigate("/admin");
+      navigate("/utcbt-internal");
       return;
     }
 
@@ -51,7 +51,7 @@ export default function AdminDashboard() {
       });
       setStats(res.data);
     } catch {
-      navigate("/admin");
+      navigate("/utcbt-internal");
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ export default function AdminDashboard() {
 
   function handleLogout() {
     localStorage.clear();
-    navigate("/admin");
+    navigate("/utcbt-internal");
   }
 
   if (loading) {
@@ -83,7 +83,7 @@ export default function AdminDashboard() {
                 <LayoutDashboard size={24} />
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Admin Dashboard
+                UTCBT Dashboard
               </h1>
             </div>
             <p className="text-sm text-[var(--text-secondary)] mt-1.5 flex items-center gap-2">
@@ -146,12 +146,12 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
-                { icon: <FileText size={22} />, title: "Quiz", desc: "Kelola pembuatan & list kuis", path: "/admin/create-quiz" },
-                { icon: <Ticket size={22} />, title: "Token", desc: "Generate & pantau token masuk", path: "/admin/tokens" },
-                { icon: <Trophy size={22} />, title: "Leaderboard", desc: "Lihat ringkasan ranking peserta", path: "/admin/leaderboard" },
-                { icon: <Users size={22} />, title: "Participant", desc: "Manajemen basis data peserta", path: "/admin/participants" },
-                { icon: <HelpCircle size={22} />, title: "Question", desc: "Bank soal dan kunci jawaban", path: "/admin/questions" },
-                { icon: <Radio size={22} />, title: "Live Monitor", desc: "Pantau aktivitas ujian langsung", path: "/admin/live-monitor" },
+                { icon: <FileText size={22} />, title: "Quiz", desc: "Kelola pembuatan & list kuis", path: "/utcbt-internal/create-quiz" },
+                { icon: <Ticket size={22} />, title: "Token", desc: "Generate & pantau token masuk", path: "/utcbt-internal/tokens" },
+                { icon: <Trophy size={22} />, title: "Leaderboard", desc: "Lihat ringkasan ranking peserta", path: "/utcbt-internal/leaderboard" },
+                { icon: <Users size={22} />, title: "Participant", desc: "Manajemen basis data peserta", path: "/utcbt-internal/participants" },
+                { icon: <HelpCircle size={22} />, title: "Question", desc: "Bank soal dan kunci jawaban", path: "/utcbt-internal/questions" },
+                { icon: <Radio size={22} />, title: "Live Monitor", desc: "Pantau aktivitas ujian langsung", path: "/utcbt-internal/live-monitor" },
               ].map((menu, index) => (
                 <button
                   key={index}

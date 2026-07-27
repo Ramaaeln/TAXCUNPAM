@@ -11,7 +11,7 @@ export default function ProtectedAdminRoute({
   if (!token) {
     return (
       <Navigate
-        to="/admin"
+        to="/utcbt-internal"
         replace
       />
     );
