@@ -7,7 +7,8 @@ const router = express.Router();
 
 router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
   try {
-    const attemptId = req.user.attemptId;
+    const attemptId = req.user?.attemptId;
+    const { reason } = req.body;
 
     if (!attemptId) {
       return res.status(401).json({
@@ -29,17 +30,27 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
       });
     }
 
+    // Jika kuis sudah ditandai selesai sebelumnya, kembalikan data yang ada tanpa hitung ulang
     if (
       ["submitted", "timeout", "disqualified", "auto_submitted"].includes(
-        attempt.status,
+        attempt.status
       )
     ) {
       return res.json({
         success: true,
         message: "Quiz already finished",
+        result: {
+          score: attempt.score,
+          totalQuestions: attempt.total_questions,
+          correctAnswers: attempt.correct_answers,
+          wrongAnswers: attempt.wrong_answers,
+          unanswered: attempt.unanswered,
+          status: attempt.status,
+        },
       });
     }
 
+    // Fetch jawaban peserta + relasi ke kunci jawaban
     const { data: answers, error: answersError } = await supabase
       .from("quiz_answers")
       .select(
@@ -58,12 +69,12 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
           id,
           is_correct
         )
-      `,
+      `
       )
       .eq("attempt_id", attemptId);
 
     if (answersError) {
-      console.error(answersError);
+      console.error("Fetch answers error:", answersError);
       return res.status(500).json({
         success: false,
         message: "Failed fetch answers",
@@ -74,38 +85,46 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
     let score = 0;
     let correctAnswers = 0;
     let wrongAnswers = 0;
+    let trulyAnsweredCount = 0;
 
     for (const answer of safeAnswers) {
       const questionType = answer?.questions?.question_type;
 
       if (questionType === "multiple_choice") {
-        const isCorrect = answer?.question_options?.is_correct;
+        if (answer?.selected_option_id) {
+          trulyAnsweredCount++;
+          const isCorrect = answer?.question_options?.is_correct;
 
-        if (isCorrect) {
-          score += answer?.questions?.points || 0;
-          correctAnswers++;
-        } else {
-          wrongAnswers++;
+          if (isCorrect) {
+            score += answer?.questions?.points || 0;
+            correctAnswers++;
+          } else {
+            wrongAnswers++;
+          }
         }
       } else {
-        const userAnswer = answer?.text_answer
-          ?.trim()
-          ?.toLowerCase()
-          ?.replace(/\s+/g, " ");
-        const correctAnswer = answer?.questions?.short_answer
-          ?.trim()
-          ?.toLowerCase()
-          ?.replace(/\s+/g, " ");
+        const rawUserAnswer = answer?.text_answer?.trim();
 
-        if (userAnswer && correctAnswer && userAnswer === correctAnswer) {
-          score += answer?.questions?.points || 0;
-          correctAnswers++;
-        } else {
-          wrongAnswers++;
+        if (rawUserAnswer && rawUserAnswer !== "") {
+          trulyAnsweredCount++;
+
+          const userAnswer = rawUserAnswer.toLowerCase().replace(/\s+/g, " ");
+          const correctAnswer = answer?.questions?.short_answer
+            ?.trim()
+            ?.toLowerCase()
+            ?.replace(/\s+/g, " ");
+
+          if (correctAnswer && userAnswer === correctAnswer) {
+            score += answer?.questions?.points || 0;
+            correctAnswers++;
+          } else {
+            wrongAnswers++;
+          }
         }
       }
     }
 
+    // Hitung total soal
     const { count: totalQuestions, error: totalError } = await supabase
       .from("questions")
       .select("*", { count: "exact", head: true })
@@ -113,49 +132,67 @@ router.post("/", verifyParticipant, checkQuizTimer, async (req, res) => {
       .is("deleted_at", null);
 
     if (totalError) {
-      console.error(totalError);
+      console.error("Count total questions error:", totalError);
       return res.status(500).json({
         success: false,
         message: "Failed count questions",
       });
     }
 
-    const unanswered = totalQuestions - safeAnswers.length;
-    const finalStatus = req.isTimeout ? "timeout" : "submitted";
+    const total = totalQuestions || 0;
+    const unanswered = Math.max(0, total - trulyAnsweredCount);
+
+    // Tentukan status akhir
+    let finalStatus = "submitted";
+    let isAutoSubmitted = false;
+
+    if (reason === "cheated") {
+      finalStatus = "auto_submitted";
+      isAutoSubmitted = true;
+    } else if (req.isTimeout) {
+      finalStatus = "timeout";
+    }
+
+    // Update data hasil pengerjaan di quiz_attempts
     const { error: updateError } = await supabase
       .from("quiz_attempts")
       .update({
         score,
-        total_questions: totalQuestions,
+        total_questions: total,
         correct_answers: correctAnswers,
         wrong_answers: wrongAnswers,
         unanswered,
         status: finalStatus,
-        submitted_at: new Date(),
-        status: "submitted",
+        auto_submitted: isAutoSubmitted,
+        submitted_at: new Date().toISOString(),
       })
       .eq("id", attemptId);
 
     if (updateError) {
-      console.error(updateError);
+      console.error("Update quiz attempt error:", updateError);
       return res.status(500).json({
         success: false,
         message: "Failed update result",
       });
     }
 
+    // CATATAN: Poin penting - Sesi TIDAK di-set is_active = false secara instan di sini
+    // agar token JWT masih bisa dipakai untuk memanggil GET /quiz/result.
+    // Penutupan penuh sesi diikutsertakan saat user klik tombol "Keluar" di halaman hasil.
+
     return res.json({
       success: true,
       result: {
         score,
-        totalQuestions,
+        totalQuestions: total,
         correctAnswers,
         wrongAnswers,
         unanswered,
+        status: finalStatus,
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Submit internal error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

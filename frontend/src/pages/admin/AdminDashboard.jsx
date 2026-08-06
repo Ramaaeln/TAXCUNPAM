@@ -11,6 +11,7 @@ import {
   Radio,
   LogOut,
   ArrowRight,
+  ShieldAlert, // Added for Recovery icon
 } from "lucide-react";
 
 import api from "../../utils/api";
@@ -137,7 +138,7 @@ export default function AdminDashboard() {
         {/* LOWER SECTION (GRID 2 SECTIONS) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* QUICK ACCESS (Lebih Lebar) */}
+          {/* QUICK ACCESS */}
           <div className="lg:col-span-2 bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5">
             <div className="mb-6">
               <h2 className="text-lg font-bold tracking-tight">Quick Access</h2>
@@ -148,6 +149,7 @@ export default function AdminDashboard() {
               {[
                 { icon: <FileText size={22} />, title: "Quiz", desc: "Kelola pembuatan & list kuis", path: "/utcbt-internal/create-quiz" },
                 { icon: <Ticket size={22} />, title: "Token", desc: "Generate & pantau token masuk", path: "/utcbt-internal/tokens" },
+                { icon: <ShieldAlert size={22} />, title: "Recovery", desc: "Reset sesi & token darurat peserta", path: "/utcbt-internal/recovery" },
                 { icon: <Trophy size={22} />, title: "Leaderboard", desc: "Lihat ringkasan ranking peserta", path: "/utcbt-internal/leaderboard" },
                 { icon: <Users size={22} />, title: "Participant", desc: "Manajemen basis data peserta", path: "/utcbt-internal/participants" },
                 { icon: <HelpCircle size={22} />, title: "Question", desc: "Bank soal dan kunci jawaban", path: "/utcbt-internal/questions" },

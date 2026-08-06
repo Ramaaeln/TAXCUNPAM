@@ -30,9 +30,22 @@ export default function Participants() {
     fetchParticipants();
   }, []);
 
+  // Helper untuk mengekstrak judul kuis dari objek maupun array relasi
+  function getQuizTitle(participant) {
+    if (Array.isArray(participant?.quizzes)) {
+      return participant.quizzes[0]?.title || "N/A";
+    }
+    return participant?.quizzes?.title || "N/A";
+  }
+
   async function fetchParticipants() {
     try {
       const token = localStorage.getItem("adminToken");
+      if (!token) {
+        setMessage("Sesi admin berakhir. Silakan login kembali.");
+        return;
+      }
+
       const res = await api.get("/admin/live-monitor", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -41,10 +54,12 @@ export default function Participants() {
 
       setParticipants(res.data.participants || []);
     } catch (err) {
-      setMessage(
-        err.response?.data?.message || "Failed to load participants"
-      );
-    } finally {
+      if (err.response?.status !== 401) {
+        setMessage(
+          err.response?.data?.message || "Failed to load participants"
+        );
+      }
+    } fontally: {
       setLoading(false);
     }
   }
@@ -53,20 +68,29 @@ export default function Participants() {
   const submitted = participants.filter((p) => p.status === "submitted").length;
   const active = participants.filter((p) => p.status === "in_progress").length;
 
-  const filteredParticipants = participants.filter((p) =>
-    p.participant_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filter berdasarkan nama peserta atau nama kuis
+  const filteredParticipants = participants.filter((p) => {
+    const searchLower = search.toLowerCase();
+    const nameMatch = (p.participant_name || "").toLowerCase().includes(searchLower);
+    const quizMatch = getQuizTitle(p).toLowerCase().includes(searchLower);
+    return nameMatch || quizMatch;
+  });
 
   function exportExcel() {
-    const data = participants.map((p) => ({
-      Participant: p.participant_name,
-      Quiz: p.quizzes?.title,
-      Status: p.status,
-      Score: p.score,
-      Violations: p.violation_count,
-      Devtools: p.devtools_violations,
-      Fullscreen: p.fullscreen_violations,
-      TabSwitch: p.tab_switch_violations,
+    if (!filteredParticipants.length) {
+      alert("Tidak ada data peserta untuk diekspor.");
+      return;
+    }
+
+    const data = filteredParticipants.map((p) => ({
+      Participant: p.participant_name || "Tanpa Nama",
+      Quiz: getQuizTitle(p),
+      Status: p.status || "N/A",
+      Score: p.score ?? 0,
+      Violations: p.violation_count || 0,
+      Devtools: p.devtools_violations || 0,
+      Fullscreen: p.fullscreen_violations || 0,
+      TabSwitch: p.tab_switch_violations || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -86,12 +110,17 @@ export default function Participants() {
   }
 
   function exportCSV() {
+    if (!filteredParticipants.length) {
+      alert("Tidak ada data peserta untuk diekspor.");
+      return;
+    }
+
     const data = filteredParticipants.map((p) => ({
-      Participant: p.participant_name,
-      Quiz: p.quizzes?.title,
-      Status: p.status,
-      Score: p.score,
-      Violations: p.violation_count,
+      Participant: p.participant_name || "Tanpa Nama",
+      Quiz: getQuizTitle(p),
+      Status: p.status || "N/A",
+      Score: p.score ?? 0,
+      Violations: p.violation_count || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -113,13 +142,14 @@ export default function Participants() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-8 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* BACK ACTION */}
-        <div className="mb-6">
+        <div>
           <button
+            type="button"
             onClick={() => navigate("/utcbt-internal/dashboard")}
-            className="flex items-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm"
+            className="flex items-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm cursor-pointer"
           >
             <ArrowLeft size={14} />
             Dashboard
@@ -127,7 +157,7 @@ export default function Participants() {
         </div>
 
         {/* HEADER */}
-        <div className="mb-8">
+        <div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-indigo-500/10 rounded-xl text-[var(--secondary)]">
               <Users size={24} />
@@ -141,13 +171,13 @@ export default function Participants() {
 
         {/* ERROR MESSAGE NOTIFICATION */}
         {message && (
-          <div className="mb-6 p-4 rounded-xl border text-xs font-medium bg-rose-500/10 border-rose-500/20 text-rose-400">
+          <div className="p-4 rounded-xl border text-xs font-medium bg-rose-500/10 border-rose-500/20 text-rose-400">
             {message}
           </div>
         )}
 
         {/* ANALYTICS STATS METRICS */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 shadow-md shadow-black/5 flex items-center justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Total Register</p>
@@ -180,7 +210,7 @@ export default function Participants() {
         </div>
 
         {/* UTILITIES FILTER AND EXPORTBAR */}
-        <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 shadow-md shadow-black/5 mb-6">
+        <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 shadow-md shadow-black/5">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center">
             
             {/* SEARCH CONTROLLER */}
@@ -189,7 +219,7 @@ export default function Participants() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari nama peserta kuis..."
+                placeholder="Cari nama peserta atau nama kuis..."
                 className="w-full bg-[var(--background)] border border-slate-800/80 rounded-xl py-2.5 pl-11 pr-4 text-sm outline-none transition focus:border-indigo-500/50"
               />
             </div>
@@ -197,16 +227,18 @@ export default function Participants() {
             {/* DOWNLOAD EXPORTERS */}
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={exportExcel}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--secondary)] hover:opacity-90 text-[var(--background)] text-xs font-bold transition shadow-sm"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--secondary)] hover:opacity-90 text-[var(--background)] text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 <Download size={14} />
                 Excel
               </button>
 
               <button
+                type="button"
                 onClick={exportCSV}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition cursor-pointer"
               >
                 <Download size={14} />
                 CSV
@@ -231,21 +263,24 @@ export default function Participants() {
               </thead>
 
               <tbody className="divide-y divide-slate-800/40 text-sm">
-                {filteredParticipants.map((participant) => {
-                  const hasViolations = (participant.violation_count || 0) > 0;
+                {filteredParticipants.map((participant, idx) => {
+                  const violationCount = Number(participant.violation_count) || 0;
+                  const hasViolations = violationCount > 0;
+                  const targetQuizTitle = getQuizTitle(participant);
+
                   return (
                     <tr
-                      key={participant.id}
+                      key={participant.id || participant.participant_id || `participant-${idx}`}
                       className={`hover:bg-slate-900/30 transition-colors ${hasViolations ? "bg-rose-500/[0.01]" : ""}`}
                     >
                       {/* PARTICIPANT NAME */}
                       <td className="p-4 font-semibold text-[var(--text-primary)] whitespace-nowrap">
-                        {participant.participant_name}
+                        {participant.participant_name || "Tanpa Nama"}
                       </td>
 
                       {/* TARGET QUIZ */}
                       <td className="p-4 text-xs text-[var(--text-secondary)] max-w-xs truncate">
-                        {participant.quizzes?.title || "N/A"}
+                        {targetQuizTitle}
                       </td>
 
                       {/* BADGE ACCESS STATUS */}
@@ -274,7 +309,7 @@ export default function Participants() {
                         {hasViolations ? (
                           <span className="inline-flex items-center gap-1 justify-center">
                             <AlertTriangle size={12} />
-                            {participant.violation_count}
+                            {violationCount}
                           </span>
                         ) : (
                           0
@@ -284,8 +319,9 @@ export default function Participants() {
                       {/* DRILL ACTIONS ROW */}
                       <td className="p-4 text-center whitespace-nowrap">
                         <button
-                          onClick={() => navigate(`/utcbt-internal/review-answers/${participant.id}`)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-800 bg-slate-900 text-slate-300 hover:text-indigo-400 hover:border-indigo-500/30 transition-all shadow-sm"
+                          type="button"
+                          onClick={() => navigate(`/utcbt-internal/review-answers/${participant.id || participant.participant_id}`)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-800 bg-slate-900 text-slate-300 hover:text-indigo-400 hover:border-indigo-500/30 transition-all shadow-sm cursor-pointer"
                         >
                           <Eye size={12} />
                           Cek Jawaban

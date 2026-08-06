@@ -41,6 +41,12 @@ export default function Leaderboard() {
   async function fetchQuizzes() {
     try {
       const token = localStorage.getItem("adminToken");
+      if (!token) {
+        setMessageType("error");
+        setMessage("Sesi Anda habis. Silakan login kembali.");
+        return;
+      }
+
       const res = await api.get("/admin/quizzes", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -67,21 +73,23 @@ export default function Leaderboard() {
     }
   }
 
+  // Analytics Metrics dengan sanitasi Number()
   const totalParticipants = leaderboard.length;
-  const highestScore = leaderboard.length > 0 ? leaderboard[0].score : 0;
+  const highestScore = leaderboard.length > 0 ? Number(leaderboard[0].score || 0) : 0;
   const averageScore =
     leaderboard.length > 0
       ? (
-          leaderboard.reduce((sum, item) => sum + item.score, 0) /
+          leaderboard.reduce((sum, item) => sum + Number(item.score || 0), 0) /
           leaderboard.length
         ).toFixed(1)
       : 0;
 
   // Helper formatting seconds to mm:ss
   function formatDuration(seconds) {
-    if (!seconds) return "0s";
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    if (!seconds || isNaN(seconds)) return "0s";
+    const secNum = Number(seconds);
+    const m = Math.floor(secNum / 60);
+    const s = secNum % 60;
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
@@ -90,8 +98,9 @@ export default function Leaderboard() {
     const data = leaderboard.map((item) => ({
       Rank: item.rank,
       Participant: item.participant_name,
-      Score: item.score,
-      "Duration (Seconds)": item.duration_seconds,
+      Score: Number(item.score || 0),
+      "Duration": formatDuration(item.duration_seconds),
+      "Duration (Seconds)": item.duration_seconds || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -114,8 +123,9 @@ export default function Leaderboard() {
     const data = leaderboard.map((item) => ({
       Rank: item.rank,
       Participant: item.participant_name,
-      Score: item.score,
-      "Duration (Seconds)": item.duration_seconds,
+      Score: Number(item.score || 0),
+      "Duration": formatDuration(item.duration_seconds),
+      "Duration (Seconds)": item.duration_seconds || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -126,10 +136,10 @@ export default function Leaderboard() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-8 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* BACK ACTION */}
-        <div className="mb-6">
+        <div>
           <button
             type="button"
             onClick={() => navigate("/utcbt-internal/dashboard")}
@@ -141,7 +151,7 @@ export default function Leaderboard() {
         </div>
 
         {/* HEADER */}
-        <div className="mb-8">
+        <div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-indigo-500/10 rounded-xl text-[var(--secondary)]">
               <Trophy size={24} />
@@ -156,7 +166,7 @@ export default function Leaderboard() {
         {/* TOAST SYSTEM MESSAGE */}
         {message && (
           <div
-            className={`mb-6 p-4 rounded-xl border text-xs font-medium leading-relaxed animate-in fade-in duration-200 ${
+            className={`p-4 rounded-xl border text-xs font-medium leading-relaxed animate-in fade-in duration-200 ${
               messageType === "success"
                 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                 : "bg-rose-500/10 border-rose-500/20 text-rose-400"
@@ -167,7 +177,7 @@ export default function Leaderboard() {
         )}
 
         {/* QUIZ PICKER FILTER */}
-        <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 shadow-md shadow-black/5 mb-8">
+        <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 shadow-md shadow-black/5">
           <label className="block mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
             Pilih Paket Quiz Target
           </label>
@@ -187,7 +197,7 @@ export default function Leaderboard() {
 
         {/* ANALYTICS SUMMARY GRID */}
         {selectedQuiz && !loading && leaderboard.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 animate-in fade-in slide-in-from-top-1 duration-300">
             {/* CARD 1 */}
             <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 shadow-md shadow-black/5 flex items-center justify-between">
               <div>
@@ -287,7 +297,7 @@ export default function Leaderboard() {
                     </td>
                   </tr>
                 ) : (
-                  leaderboard.map((item) => {
+                  leaderboard.map((item, idx) => {
                     const isTop3 = item.rank <= 3;
                     const top3Styles = [
                       "bg-amber-500/10 text-amber-400 border-amber-500/20", // #1 Gold
@@ -297,7 +307,7 @@ export default function Leaderboard() {
 
                     return (
                       <tr
-                        key={item.participant_id}
+                        key={item.id || item.attempt_id || item.participant_id || `rank-${idx}`}
                         className="hover:bg-slate-900/30 transition-colors"
                       >
                         {/* RANK COMPONENT */}
@@ -314,12 +324,12 @@ export default function Leaderboard() {
 
                         {/* NAME */}
                         <td className="p-4 font-medium text-[var(--text-primary)]">
-                          {item.participant_name}
+                          {item.participant_name || "Tanpa Nama"}
                         </td>
 
                         {/* SCORE */}
                         <td className="p-4 font-bold tracking-tight text-indigo-400">
-                          {item.score} <span className="text-[10px] text-slate-600 font-normal">pts</span>
+                          {item.score ?? 0} <span className="text-[10px] text-slate-600 font-normal">pts</span>
                         </td>
 
                         {/* TIME TAKEN */}

@@ -14,6 +14,9 @@ import LeaderboardAdmin from "./pages/admin/LeaderboardAdmin";
 import Participants from "./pages/admin/Participants";
 import NotFound from "./pages/NotFound";
 import ReviewAnswers from "./pages/admin/ReviewAnswers";
+import RecoveryAdmin from "./pages/admin/RecoveryAdmin";
+import ScrollToTop from "./components/ScrollTop"; // 1. Import komponen ScrollToTop
+
 function ProtectedQuizRoute({ children }) {
   const token = localStorage.getItem("accessToken");
   const quizId = localStorage.getItem("quizId");
@@ -29,6 +32,9 @@ function ProtectedQuizRoute({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* 2. Diletakkan di sini agar melayang di atas semua halaman */}
+      <ScrollToTop />
+
       <Routes>
         <Route path="/" element={<Login />} />
 
@@ -81,6 +87,14 @@ export default function App() {
           element={
             <ProtectedAdminRoute>
               <GenerateToken />
+            </ProtectedAdminRoute>
+          }
+        />
+        <Route
+          path="/utcbt-internal/recovery"
+          element={
+            <ProtectedAdminRoute>
+              <RecoveryAdmin />
             </ProtectedAdminRoute>
           }
         />

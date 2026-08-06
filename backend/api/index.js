@@ -6,32 +6,36 @@ import compression from "compression";
 
 import { supabase } from "./lib/supabase.js";
 
-
-
+// Import Auth & Admin Routes
 import tokenLoginRoute from "./auth/token-login.js";
 import participantLoginRoute from "./participant/login.js";
 import adminLoginRoute from "./admin/login.js";
 import generateTokenRoute from "./admin/generate-token.js";
+import resetSessionRoute from "./admin/reset-session.js";
 import createQuizRoute from "./admin/create-quiz.js";
 import createQuestionRoute from "./admin/create-question.js";
 import getQuizzesRoute from "./admin/get-quizzes.js";
+import liveMonitorRoute from "./admin/live-monitor.js";
+import dashboardStats from "./admin/dashboard-stats.js";
+import getQuestionsRoute from "./admin/get-questions.js";
+import deleteQuestion from "./admin/delete-question.js";
+import updateQuestion from "./admin/update-question.js";
+import reviewAnswersRoute from "./admin/review-answers.js";
+
+// Import Quiz & Leaderboard Routes
 import questionRoute from "./quiz/questions.js";
 import autosaveRoute from "./quiz/autosave.js";
 import submitRoute from "./quiz/submit.js";
 import violationRoute from "./quiz/violation.js";
 import quizInfoRoute from "./quiz/info.js";
-import leaderboardRoute from "./leaderboard/index.js";
-import recoverRoute from "./quiz/recover.js";
 import heartbeatRoute from "./quiz/heartbeat.js";
-import liveMonitorRoute from "./admin/live-monitor.js";
+import recoverRoute from "./quiz/recover.js";
 import resultRoute from "./quiz/result.js";
-import dashboardStats from "./admin/dashboard-stats.js";
-import getQuestionsRoute from "./admin/get-questions.js";
-import deleteQuestion from "./admin/delete-question.js";
-import updateQuestion from "./admin/update-question.js";
-import reviewAnswersRoute from "./admin/review-answers.js"
+import leaderboardRoute from "./leaderboard/index.js";
+
 const app = express();
 app.set("trust proxy", 1);
+
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
@@ -39,9 +43,22 @@ app.use(
   }),
 );
 
+// PEMBERSIHAN / NORMALISASI CORS
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5173",
+  "http://localhost:3000",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.some((o) => origin.startsWith(o.replace(/\/$/, "")))) {
+        callback(null, true);
+      } else {
+        callback(null, true); 
+      }
+    },
     credentials: true,
   }),
 );
@@ -52,12 +69,12 @@ app.use(compression());
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300, 
+  max: 2000, 
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    message: "Too many requests",
+    message: "Terlalu banyak permintaan dari IP ini, silakan coba beberapa saat lagi.",
   },
 });
 
@@ -65,15 +82,16 @@ app.use(limiter);
 
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 10,
+  max: 15,
   message: {
     success: false,
-    message: "Too many login attempts",
+    message: "Terlalu banyak percobaan login, coba lagi dalam 10 menit.",
   },
 });
 
 app.use("/api/admin/login", loginLimiter);
 app.use("/api/auth/token-login", loginLimiter);
+app.use("/api/participant/login", loginLimiter);
 
 app.get("/", (req, res) => {
   res.json({
@@ -106,21 +124,25 @@ app.get("/test-db", async (req, res) => {
   }
 });
 
+// AUTH ROUTES
 app.use("/api/auth/token-login", tokenLoginRoute);
 app.use("/api/participant/login", participantLoginRoute);
 app.use("/api/admin/login", adminLoginRoute);
 
+// ADMIN ROUTES
 app.use("/api/admin/generate-token", generateTokenRoute);
+app.use("/api/admin/reset-session", resetSessionRoute);
 app.use("/api/admin/create-quiz", createQuizRoute);
 app.use("/api/admin/create-question", createQuestionRoute);
 app.use("/api/admin/quizzes", getQuizzesRoute);
 app.use("/api/admin/live-monitor", liveMonitorRoute);
 app.use("/api/admin/dashboard-stats", dashboardStats);
-app.use("/api/admin/questions",getQuestionsRoute,);
-app.use("/api/admin/delete-question",deleteQuestion);
-app.use("/api/admin/update-question",updateQuestion);
+app.use("/api/admin/questions", getQuestionsRoute);
+app.use("/api/admin/delete-question", deleteQuestion);
+app.use("/api/admin/update-question", updateQuestion);
 app.use("/api/admin/review-answers", reviewAnswersRoute);
 
+// QUIZ ROUTES
 app.use("/api/quiz/questions", questionRoute);
 app.use("/api/quiz/autosave", autosaveRoute);
 app.use("/api/quiz/submit", submitRoute);
@@ -130,6 +152,7 @@ app.use("/api/quiz/heartbeat", heartbeatRoute);
 app.use("/api/quiz/recover", recoverRoute);
 app.use("/api/quiz/result", resultRoute);
 
+// LEADERBOARD ROUTES
 app.use("/api/leaderboard", leaderboardRoute);
 
 app.use((req, res) => {

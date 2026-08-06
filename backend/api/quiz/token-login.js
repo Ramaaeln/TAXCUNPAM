@@ -48,6 +48,7 @@ router.post("/", async (req, res) => {
     const sessionExpires = new Date();
     sessionExpires.setMinutes(sessionExpires.getMinutes() + 60);
 
+    // Buat session baru di database
     const { data: session, error: sessionError } = await supabase
       .from("quiz_sessions")
       .insert({
@@ -64,12 +65,14 @@ router.post("/", async (req, res) => {
       .single();
 
     if (sessionError) {
+      console.error("Session creation error:", sessionError);
       return res.status(500).json({
         success: false,
         message: "Failed to create session",
       });
     }
 
+    // Tandai token sudah digunakan
     await supabase
       .from("quiz_tokens")
       .update({
@@ -78,10 +81,13 @@ router.post("/", async (req, res) => {
       })
       .eq("id", tokenData.id);
 
+    // GENERATE JWT PAYLOAD SINKRON (Sediakan sessionId dan attemptId)
     const sessionToken = jwt.sign(
       {
+        sessionId: session.id,
         session_id: session.id,
-        quiz_id: tokenData.quiz_id,
+        attemptId: session.id, // Sesuaikan jika ada ID attempt terpisah
+        quizId: tokenData.quiz_id,
         role: "participant",
       },
       process.env.JWT_SECRET,
@@ -94,12 +100,13 @@ router.post("/", async (req, res) => {
       success: true,
       sessionToken,
       sessionId: session.id,
+      attemptId: session.id,
       quizId: tokenData.quiz_id,
       expiresAt: sessionExpires.toISOString(),
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Token verification router error:", error);
 
     return res.status(500).json({
       success: false,

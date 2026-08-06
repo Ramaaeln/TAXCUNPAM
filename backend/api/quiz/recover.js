@@ -1,133 +1,61 @@
 import express from "express";
+import { supabase } from "../lib/supabase.js";
+import { verifyParticipant } from "../middleware/auth.js";
 
-import jwt from "jsonwebtoken";
+const router = express.Router();
 
-import { supabase }
-from "../lib/supabase.js";
+router.get("/", verifyParticipant, async (req, res) => {
+  try {
+    const attemptId = req.user.attemptId;
 
-const router =
-  express.Router();
-
-
-
-router.get(
-  "/",
-
-  async (req, res) => {
-
-    try {
-
-      const authHeader =
-        req.headers.authorization;
-
-
-
-      if (!authHeader) {
-
-        return res
-          .status(401)
-          .json({
-            success: false,
-            message:
-              "Unauthorized",
-          });
-      }
-
-
-
-      const token =
-        authHeader.split(
-          " "
-        )[1];
-
-
-
-      const decoded =
-        jwt.verify(
-          token,
-          process.env.JWT_SECRET
-        );
-
-      const {
-        data: attempt,
-        error:
-          attemptError,
-      } = await supabase
-
-        .from(
-          "quiz_attempts"
-        )
-
-        .select("*")
-
-        .eq(
-          "id",
-          decoded.attemptId
-        )
-
-        .single();
-
-
-
-      if (
-        attemptError ||
-        !attempt
-      ) {
-
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message:
-              "Attempt not found",
-          });
-      }
-
-      const {
-        data: answers,
-      } = await supabase
-
-        .from(
-          "quiz_answers"
-        )
-
-        .select(
-          `
-          question_id,
-          selected_option_id
-        `
-        )
-
-        .eq(
-          "attempt_id",
-          attempt.id
-        );
-
-
-
-      return res.json({
-        success: true,
-
-        attempt,
-
-        answers,
+    if (!attemptId) {
+      return res.status(401).json({
+        success: false,
+        message: "Attempt ID tidak ditemukan dalam token",
       });
-
-    } catch (error) {
-
-      console.error(
-        error
-      );
-
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Internal server error",
-        });
     }
-  }
-);
 
-export default router;
+    // 1. Ambil data attempt aktif peserta
+    const { data: attempt, error: attemptError } = await supabase
+      .from("quiz_attempts")
+      .select("id, status, quiz_id")
+      .eq("id", attemptId)
+      .maybeSingle();
+
+    if (attemptError || !attempt) {
+      return res.status(404).json({
+        success: false,
+        message: "Attempt not found",
+      });
+    }
+
+    // 2. Ambil seluruh jawaban tersimpan dari database Supabase
+    const { data: answers, error: answersError } = await supabase
+      .from("quiz_answers")
+      .select("question_id, selected_option_id, text_answer, answered_at")
+      .eq("attempt_id", attempt.id);
+
+    if (answersError) {
+      console.error("Error fetching answers:", answersError);
+      return res.status(500).json({
+        success: false,
+        message: "Gagal mengambil riwayat jawaban",
+      });
+    }
+
+    return res.json({
+      success: true,
+      status: attempt.status,
+      answers: answers || [],
+    });
+  } catch (error) {
+    console.error("Recover endpoint error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
+export default router;  

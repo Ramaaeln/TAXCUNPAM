@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/api";
 import {
@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Radio,
   Eye,
+  RefreshCw,
 } from "lucide-react";
 import useDocumentTitle from "../../hooks/useDocumentTitle";
 
@@ -18,44 +19,66 @@ export default function LiveMonitor() {
   useDocumentTitle("Live Monitor | UTCBT");
 
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [participants, setParticipants] = useState([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("error");
 
-  useEffect(() => {
-    // Jalankan fetch pertama kali
-    fetchMonitor();
-    
-    // Set interval untuk auto-pooling setiap 5 detik
-    const interval = setInterval(fetchMonitor, 5000);
+  const isMounted = useRef(true);
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
+  // Memoized fetch function untuk menghindari stale closure
+  const fetchMonitor = useCallback(async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
 
-  async function fetchMonitor() {
     try {
       const token = localStorage.getItem("adminToken");
+      if (!token) {
+        if (isMounted.current) {
+          setMessageType("error");
+          setMessage("Sesi admin berakhir. Silakan login kembali.");
+        }
+        return;
+      }
+
       const res = await api.get("/admin/live-monitor", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setParticipants(res.data.participants || []);
-      
-      // Bersihkan error message jika re-fetch berhasil
-      setMessage("");
+
+      if (isMounted.current) {
+        setParticipants(res.data.participants || []);
+        setMessage("");
+      }
     } catch (err) {
-      // Jika terjadi error 401, biarkan Axios Interceptor di api.js yang menangani pengalihan halaman
-      if (err.response?.status !== 401) {
+      if (isMounted.current && err.response?.status !== 401) {
         setMessageType("error");
         setMessage(err.response?.data?.message || "Gagal memperbarui data monitor");
       }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    isMounted.current = true;
+    fetchMonitor();
+
+    // Auto polling setiap 5 detik HANYA jika tab browser sedang aktif
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchMonitor();
+      }
+    }, 5000);
+
+    return () => {
+      isMounted.current = false;
+      clearInterval(interval);
+    };
+  }, [fetchMonitor]);
 
   if (loading) {
     return (
@@ -71,14 +94,14 @@ export default function LiveMonitor() {
 
   const active = participants.filter((p) => p.status === "in_progress").length;
   const submitted = participants.filter((p) => p.status === "submitted").length;
-  const violations = participants.reduce((sum, p) => sum + (p.violation_count || 0), 0);
+  const violations = participants.reduce((sum, p) => sum + (Number(p.violation_count) || 0), 0);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-8 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* HEADER CONTROL */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-slate-800/40">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-800/40">
           <div>
             <button
               type="button"
@@ -109,15 +132,27 @@ export default function LiveMonitor() {
             )}
           </div>
 
-          {/* REFRESH CHIP */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/40 border border-slate-800 text-xs font-mono text-[var(--text-secondary)]">
-            <Radio size={12} className="text-emerald-400 animate-pulse" />
-            <span>Auto-refresh: 5s</span>
+          {/* REFRESH ACTIONS & CHIP */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fetchMonitor(true)}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-slate-700 hover:bg-slate-800 text-xs font-semibold text-slate-300 transition disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isRefreshing ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
+
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/40 border border-slate-800 text-xs font-mono text-[var(--text-secondary)]">
+              <Radio size={12} className="text-emerald-400 animate-pulse" />
+              <span>Auto: 5s</span>
+            </div>
           </div>
         </div>
 
         {/* MONITOR METRICS STATUS */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {[
             { icon: <Users size={22} />, label: "Active Testing", value: active, color: "from-emerald-500/10 to-transparent", text: "text-emerald-400" },
             { icon: <Trophy size={22} />, label: "Submitted Quiz", value: submitted, color: "from-blue-500/10 to-transparent", text: "text-blue-400" },
@@ -177,18 +212,25 @@ export default function LiveMonitor() {
                     </td>
                   </tr>
                 ) : (
-                  participants.map((p) => {
-                    const hasViolations = (p.violation_count || 0) > 0;
+                  participants.map((p, idx) => {
+                    const violationCount = Number(p.violation_count) || 0;
+                    const hasViolations = violationCount > 0;
+                    
+                    // Safe access untuk relasi quiz tunggal / array
+                    const quizTitle = Array.isArray(p.quizzes)
+                      ? p.quizzes[0]?.title
+                      : p.quizzes?.title || "N/A";
+
                     return (
-                      <tr key={p.id} className={`hover:bg-slate-900/30 transition-colors ${hasViolations ? "bg-rose-500/[0.01]" : ""}`}>
+                      <tr key={p.id || p.participant_id || `participant-${idx}`} className={`hover:bg-slate-900/30 transition-colors ${hasViolations ? "bg-rose-500/[0.01]" : ""}`}>
                         {/* NAME */}
                         <td className="p-4 font-semibold text-[var(--text-primary)] whitespace-nowrap">
-                          {p.participant_name}
+                          {p.participant_name || "Tanpa Nama"}
                         </td>
 
                         {/* QUIZ TITLE */}
                         <td className="p-4 text-xs text-[var(--text-secondary)] max-w-xs truncate">
-                          {p?.quizzes?.title || "N/A"}
+                          {quizTitle}
                         </td>
 
                         {/* LIVE STATUS */}
@@ -215,7 +257,7 @@ export default function LiveMonitor() {
                           {hasViolations ? (
                             <span className="inline-flex items-center gap-1">
                               <AlertTriangle size={12} className="text-rose-400" />
-                              {p.violation_count}
+                              {violationCount}
                             </span>
                           ) : (
                             0
@@ -241,8 +283,8 @@ export default function LiveMonitor() {
                         <td className="p-4 text-center whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => navigate(`/utcbt-internal/review-answers/${p.id}`)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-[var(--secondary)] hover:text-[var(--background)] hover:border-[var(--secondary)] transition-all duration-200"
+                            onClick={() => navigate(`/utcbt-internal/review-answers/${p.id || p.attempt_id}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-[var(--secondary)] hover:text-[var(--background)] hover:border-[var(--secondary)] transition-all duration-200 cursor-pointer"
                           >
                             <Eye size={13} />
                             Cek Jawaban

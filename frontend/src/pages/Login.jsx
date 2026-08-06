@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { KeyRound, Users, ArrowRight, AlertCircle } from "lucide-react";
+import { KeyRound, Users, ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
 
 import api from "../utils/api";
 import logo from "../assets/MASCOT.png";
@@ -12,6 +12,7 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
   const [form, setForm] = useState({
     token: "",
     participantName: "",
@@ -20,29 +21,45 @@ export default function Login() {
   async function handleLogin(e) {
     e.preventDefault();
     setError("");
+    setInfoMessage("");
 
     if (!form.token.trim() || !form.participantName.trim()) {
-      setError("Token dan nama team wajib diisi.");
+      setError("Token dan nama tim wajib diisi.");
       return;
     }
 
     try {
       setLoading(true);
 
-      // Bersihkan riwayat blokir anti-cheat/sesi kuis lama sebelum login baru
+      // Bersihkan sesi lama sebelum menyimpan token baru
       localStorage.clear();
       sessionStorage.clear();
 
+      // PERBAIKAN 1: Gunakan endpoint /participant/login (bukan /auth/token-login)
       const { data } = await api.post("/auth/token-login", {
         token: form.token.trim(),
         participantName: form.participantName.trim(),
       });
 
+      // Simpan kredensial utama
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("quizId", data.quizId);
       localStorage.setItem("attemptId", data.attemptId);
 
-      navigate("/quiz");
+      // PERBAIKAN 2: Simpan startedAt hasil kalkulasi Recovery ke localStorage
+      if (data.startedAt) {
+        localStorage.setItem("quizStartedAt", data.startedAt);
+      }
+
+      // Jika backend mendeteksi ini adalah sesi recovery
+      if (data.isRecovery) {
+        setInfoMessage("Sesi ujian ditemukan. Memulihkan lembar pengerjaan...");
+        setTimeout(() => {
+          navigate("/quiz");
+        }, 1000);
+      } else {
+        navigate("/quiz");
+      }
     } catch (error) {
       setError(
         error.response?.data?.message ||
@@ -83,11 +100,19 @@ export default function Login() {
           onSubmit={handleLogin} 
           className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 sm:p-8 shadow-xl shadow-black/10"
         >
-          {/* TOAST DANGER ERROR */}
+          {/* TOAST ERROR */}
           {error && (
             <div className="flex items-start gap-3 mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 animate-in fade-in slide-in-from-top-1 duration-200">
               <AlertCircle size={18} className="text-rose-400 mt-0.5 shrink-0" />
               <p className="text-xs font-medium text-rose-400 leading-relaxed">{error}</p>
+            </div>
+          )}
+
+          {/* TOAST INFO RECOVERY */}
+          {infoMessage && (
+            <div className="flex items-start gap-3 mb-5 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 animate-in fade-in slide-in-from-top-1 duration-200">
+              <RefreshCw size={18} className="text-indigo-400 mt-0.5 shrink-0 animate-spin" />
+              <p className="text-xs font-medium text-indigo-400 leading-relaxed">{infoMessage}</p>
             </div>
           )}
 
@@ -137,7 +162,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="group w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--secondary)] hover:opacity-95 text-[var(--background)] font-extrabold text-sm shadow-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="group w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--secondary)] hover:opacity-95 text-[var(--background)] font-extrabold text-sm shadow-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? (
               <div className="flex items-center gap-2">

@@ -1,59 +1,79 @@
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Home, ArrowLeft } from "lucide-react";
-import logo from "../assets/MASCOT.png";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, Home, FileQuestion } from "lucide-react";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
 export default function NotFound() {
   const navigate = useNavigate();
+  const location = useLocation();
   useDocumentTitle("404 - Halaman Tidak Ditemukan | UTCBT");
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center p-4 antialiased selection:bg-indigo-500/30">
-      <div className="w-full max-w-md bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 sm:p-8 text-center shadow-xl shadow-black/10 space-y-6">
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex items-center justify-center p-4 antialiased selection:bg-zinc-800">
+      <div className="w-full max-w-md">
         
-        {/* VISUAL ILLUSTRATION CHIP */}
-        <div className="relative flex justify-center py-2">
-          <img 
-            src={logo} 
-            alt="Tax Center UNPAM" 
-            className="w-28 h-28 object-contain opacity-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none" 
-          />
-          <div className="p-4 bg-rose-500/10 text-rose-400 rounded-full shadow-inner border border-rose-500/10 z-10 transition-transform duration-300 hover:scale-105">
-            <AlertTriangle size={44} />
+        {/* CARD CONTAINER */}
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+          
+          {/* HEADER ICON & STATUS */}
+          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400">
+                <FileQuestion size={18} />
+              </div>
+              <span className="text-xs font-mono font-medium text-zinc-400 uppercase tracking-wider">
+                Error 404
+              </span>
+            </div>
+            <span className="text-xs font-mono bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full font-medium">
+              Not Found
+            </span>
           </div>
+
+          {/* MAIN CONTENT */}
+          <div className="space-y-3">
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              Halaman Tidak Ditemukan
+            </h1>
+            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+              Alamat URL yang Anda tuju tidak tersedia, telah dipindahkan, atau memerlukan hak akses khusus.
+            </p>
+
+            {/* PATH Context Badge */}
+            <div className="pt-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800/80 text-[11px] font-mono text-zinc-500 max-w-full truncate">
+                <span className="shrink-0 text-zinc-600">PATH:</span>
+                <span className="truncate text-zinc-300">{location.pathname}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ACTION BUTTONS */}
+          <div className="pt-2 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-sm cursor-pointer"
+            >
+              <Home size={14} />
+              <span>Halaman Utama</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-zinc-950 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 font-semibold text-xs transition cursor-pointer"
+            >
+              <ArrowLeft size={14} />
+              <span>Kembali ke Halaman Sebelumnya</span>
+            </button>
+          </div>
+
         </div>
 
-        {/* TYPOGRAPHY OVERVIEW */}
-        <div className="space-y-2">
-          <h1 className="text-6xl font-black tracking-tighter text-rose-500 font-mono">
-            404
-          </h1>
-          <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            Halaman Tidak Ditemukan
-          </h2>
-          <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed max-w-xs mx-auto opacity-90">
-            Maaf, rute yang Anda tuju tidak tersedia, telah dipindahkan, atau Anda tidak memiliki hak akses otentikasi.
-          </p>
-        </div>
-
-        {/* INTERACTION ACTION BUTTONS */}
-        <div className="flex flex-col gap-2.5 pt-2">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-full flex items-center justify-center gap-2 bg-slate-800/40 border border-slate-800 hover:bg-slate-800 text-slate-300 py-3 rounded-xl text-xs font-bold transition-all duration-200"
-          >
-            <ArrowLeft size={14} />
-            Kembali Ke Sebelumnya
-          </button>
-
-          <button
-            onClick={() => navigate("/")}
-            className="w-full flex items-center justify-center gap-2 bg-[var(--secondary)] hover:opacity-95 text-[var(--background)] py-3 rounded-xl text-xs font-bold shadow-md transition-all duration-200"
-          >
-            <Home size={14} />
-            Menuju Halaman Utama
-          </button>
-        </div>
+        {/* SYSTEM FOOTER */}
+        <p className="text-center text-zinc-600 text-[11px] font-mono mt-6">
+          UTCBT System Protocol &bull; 404_ROUTE_EXCEPTION
+        </p>
 
       </div>
     </div>

@@ -32,7 +32,10 @@ export default function CreateQuestion() {
   }, []);
 
   useEffect(() => {
-    if (!form.quiz_id) return;
+    if (!form.quiz_id) {
+      setQuestions([]);
+      return;
+    }
     fetchQuestions();
   }, [form.quiz_id]);
 
@@ -58,7 +61,14 @@ export default function CreateQuestion() {
       const res = await api.get(`/admin/questions/${form.quiz_id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setQuestions(res.data.questions || []);
+
+      // FIX: Urutkan daftar soal berdasarkan order_number secara aman
+      const fetchedQuestions = res.data.questions || [];
+      fetchedQuestions.sort(
+        (a, b) => (a.order_number ?? 0) - (b.order_number ?? 0)
+      );
+
+      setQuestions(fetchedQuestions);
     } catch {
       setMessageType("error");
       setMessage("Gagal memuat soal");
@@ -68,18 +78,27 @@ export default function CreateQuestion() {
   }
 
   function handleEdit(question) {
-    const options = question.question_options?.map((option) => option.option_text) || ["", ""];
-    const correctIndex = question.question_options?.findIndex((option) => option.is_correct) ?? 0;
+    // FIX: Penanganan aman saat mengedit soal Isian Singkat vs Pilihan Ganda
+    const isMultipleChoice = question.question_type === "multiple_choice";
+    const rawOptions = question.question_options || [];
+
+    const options = isMultipleChoice && rawOptions.length > 0
+      ? rawOptions.map((o) => o.option_text)
+      : ["", ""];
+
+    const correctIndex = isMultipleChoice && rawOptions.length > 0
+      ? rawOptions.findIndex((o) => o.is_correct)
+      : 0;
 
     setEditingId(question.id);
     setForm({
       quiz_id: question.quiz_id,
-      question_text: question.question_text,
-      question_type: question.question_type,
-      points: question.points,
+      question_text: question.question_text || "",
+      question_type: question.question_type || "multiple_choice",
+      points: question.points || 10,
       options,
-      correct_option: correctIndex,
-      short_answer: question.short_answer || "", 
+      correct_option: correctIndex < 0 ? 0 : correctIndex,
+      short_answer: question.short_answer || "",
     });
 
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -139,17 +158,29 @@ export default function CreateQuestion() {
       return;
     }
 
+    // Validation Check: Pilihan Ganda harus memiliki setidaknya 2 opsi terisi
+    if (form.question_type === "multiple_choice") {
+      const filledOptions = form.options.filter((o) => o.trim() !== "");
+      if (filledOptions.length < 2) {
+        setMessageType("error");
+        setMessage("Pilihan ganda wajib memiliki minimal 2 opsi yang tidak kosong.");
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem("adminToken");
+
+      // FIX: Bersihkan payload sesuai dengan tipe kuis yang dipilih
       const payload = {
         quiz_id: form.quiz_id,
-        question_text: form.question_text,
+        question_text: form.question_text.trim(),
         question_type: form.question_type,
         points: Number(form.points),
-        options: form.options,
-        correct_option: form.correct_option,
-        short_answer: form.short_answer,
+        options: form.question_type === "multiple_choice" ? form.options : [],
+        correct_option: form.question_type === "multiple_choice" ? form.correct_option : null,
+        short_answer: form.question_type === "short_answer" ? form.short_answer.trim() : null,
       };
 
       if (editingId) {
@@ -167,15 +198,17 @@ export default function CreateQuestion() {
         setMessage("Soal berhasil dibuat");
       }
 
+      // Reset form bidang pengerjaan
       setForm({
         quiz_id: form.quiz_id,
         question_text: "",
-        question_type: "multiple_choice",
+        question_type: form.question_type,
         points: 10,
         options: ["", ""],
         correct_option: 0,
         short_answer: "",
       });
+
       await fetchQuestions();
     } catch (err) {
       setMessageType("error");
@@ -187,10 +220,10 @@ export default function CreateQuestion() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-8 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto space-y-6">
         
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-slate-800/40">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-800/40">
           <div>
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-indigo-500/10 rounded-xl text-[var(--secondary)]">
@@ -218,13 +251,17 @@ export default function CreateQuestion() {
         {/* NOTIFICATION MESSAGE */}
         {message && (
           <div
-            className={`mb-6 flex items-start gap-3 p-4 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${
+            className={`flex items-start gap-3 p-4 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${
               messageType === "success"
                 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                 : "bg-rose-500/10 border-rose-500/20 text-rose-400"
             }`}
           >
-            {messageType === "success" ? <CheckCircle2 size={18} className="shrink-0 mt-0.5" /> : <AlertCircle size={18} className="shrink-0 mt-0.5" />}
+            {messageType === "success" ? (
+              <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            )}
             <span className="text-xs font-medium leading-relaxed">{message}</span>
           </div>
         )}
@@ -404,7 +441,7 @@ export default function CreateQuestion() {
         </form>
 
         {/* DATA CONTAINER: EXISTING QUESTIONS */}
-        <div className="mt-10 bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5">
+        <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-6 shadow-md shadow-black/5">
           <div className="mb-6">
             <h2 className="text-lg font-bold tracking-tight">Existing Questions</h2>
             <p className="text-xs text-[var(--text-secondary)]">Daftar soal yang berada di dalam paket kuis ini</p>
@@ -443,12 +480,12 @@ export default function CreateQuestion() {
                     {q.question_text}
                   </p>
 
-                  {/* FIX FIX FIX: RENDERING UNTUK MASING-MASING TIPE SOAL */}
+                  {/* RENDERING OPSI BERDASARKAN TIPE SOAL */}
                   {q.question_type === "multiple_choice" ? (
                     q.question_options?.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2 border-l-2 border-slate-800">
                         {q.question_options.map((option, index) => (
-                          <div key={option.id} className={`text-xs p-2 rounded-lg ${option.is_correct ? "text-emerald-400 bg-emerald-500/5 font-medium" : "text-[var(--text-secondary)] bg-slate-900/20"}`}>
+                          <div key={option.id || index} className={`text-xs p-2 rounded-lg ${option.is_correct ? "text-emerald-400 bg-emerald-500/5 font-medium border border-emerald-500/20" : "text-[var(--text-secondary)] bg-slate-900/20 border border-slate-800/40"}`}>
                             <span className="font-mono mr-1.5">{String.fromCharCode(65 + index)}.</span>
                             {option.option_text}
                           </div>
@@ -456,7 +493,6 @@ export default function CreateQuestion() {
                       </div>
                     )
                   ) : (
-                    // FIX: Ditambahkan container pembaca untuk menampilkan data Kunci Jawaban Isian Singkat
                     <div className="pl-3 border-l-2 border-emerald-500 bg-emerald-500/5 p-3 rounded-xl max-w-md">
                       <p className="text-xs text-[var(--text-secondary)] font-medium uppercase tracking-wider">Kunci Jawaban Singkat:</p>
                       <p className="text-sm text-emerald-400 font-mono font-bold mt-0.5">{q.short_answer || "(Belum disetel)"}</p>

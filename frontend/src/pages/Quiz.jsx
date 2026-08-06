@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import useAntiCheat from "../hooks/useAntiCheat";
 import useDevtoolsDetect from "../hooks/useDevtoolsDetect";
-import { Clock3, Flag, Send, AlertCircle, CheckCircle } from "lucide-react";
+import { Clock3, Flag, Send, AlertCircle, CheckCircle, HelpCircle, X } from "lucide-react";
 import logo from "../assets/MASCOT.png";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
@@ -15,7 +15,7 @@ export default function Quiz() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
-  const [finishType, setFinishType] = useState("normal"); 
+  const [finishType, setFinishType] = useState("normal");
   const [timeLeft, setTimeLeft] = useState(0);
   const [quizInfo, setQuizInfo] = useState(null);
   const [savedAnswers, setSavedAnswers] = useState({});
@@ -23,6 +23,18 @@ export default function Quiz() {
   const [markedQuestions, setMarkedQuestions] = useState([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("error");
+
+  // State untuk Modal Konfirmasi Submit Akhiri Ujian
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+
+  // Debounce ref untuk autosave input teks
+  const saveTimeoutRef = useRef(null);
+  const savedAnswersRef = useRef(savedAnswers);
+
+  // Sync ref dengan state
+  useEffect(() => {
+    savedAnswersRef.current = savedAnswers;
+  }, [savedAnswers]);
 
   const token = localStorage.getItem("accessToken");
   const quizId = localStorage.getItem("quizId");
@@ -33,6 +45,7 @@ export default function Quiz() {
     try {
       setSubmitting(true);
       setFinishType(type);
+      setShowSubmitModal(false);
 
       await api.post(
         "/quiz/submit",
@@ -41,48 +54,54 @@ export default function Quiz() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        },
+        }
       );
     } catch (error) {
       if (type === "normal") {
         setMessageType("error");
         setMessage(error.response?.data?.message || "Submit kuis gagal.");
-        return; 
+        setSubmitting(false);
+        return;
       }
-      console.error("Automated submit due to violation failed:", error);
     } finally {
-      setSubmitting(false);
-      
       localStorage.removeItem("quizStartedAt");
       localStorage.removeItem("attemptId");
       localStorage.removeItem("savedAnswers");
-      
+
       if (type === "cheated") {
         sessionStorage.setItem("quizAutoSubmitted", "true");
       }
 
+      // KELUAR FULLSCREEN
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
 
       setIsFinished(true);
+      setSubmitting(false);
     }
   }, [token, submitting]);
 
+  // GUARD ANTI-CHEAT
   useAntiCheat(token, async () => {
+    if (isFinished) return;
     sessionStorage.setItem("quizAutoSubmitted", "true");
     await submitQuiz("cheated");
   });
-  
-  useDevtoolsDetect(token, () => submitQuiz("cheated"));
 
+  useDevtoolsDetect(token, () => {
+    if (isFinished) return;
+    submitQuiz("cheated");
+  });
+
+  // MENCEGAH SHORTCUT PENGEMBANG
   useEffect(() => {
     const handleKeyDown = (event) => {
       const targetTag = event.target.tagName?.toLowerCase();
-      
+
       if (targetTag === "textarea" || targetTag === "input") {
         if (event.key === " " && !event.ctrlKey && !event.altKey) {
-          return; 
+          return;
         }
       }
 
@@ -94,19 +113,13 @@ export default function Quiz() {
       if (
         event.ctrlKey &&
         event.shiftKey &&
-        event.key &&
-        ["I", "J", "C", "T", "X"].includes(event.key.toUpperCase())
+        ["I", "J", "C", "S"].includes(event.key.toUpperCase())
       ) {
         event.preventDefault();
         return;
       }
 
-      if (
-        event.ctrlKey &&
-        event.key &&
-        event.key.trim() !== "" &&
-        ["u", "c", "v", "j", "t", "x"].includes(event.key.toLowerCase())
-      ) {
+      if (event.ctrlKey && event.key.toLowerCase() === "u") {
         event.preventDefault();
         return;
       }
@@ -122,7 +135,7 @@ export default function Quiz() {
     return () => document.removeEventListener("contextmenu", disableContextMenu);
   }, []);
 
-  async function fetchQuestions() {
+  const fetchQuestions = useCallback(async () => {
     try {
       const response = await api.get(`/quiz/questions/${quizId}`, {
         headers: {
@@ -133,46 +146,66 @@ export default function Quiz() {
     } catch (error) {
       setMessageType("error");
       setMessage(error.response?.data?.message || "Gagal memuat soal.");
-      navigate("/");
+      setTimeout(() => navigate("/"), 1500);
     } finally {
       setLoading(false);
     }
-  }
+  }, [quizId, token, navigate]);
 
-  async function fetchQuizInfo() {
+  const fetchQuizInfo = useCallback(async () => {
     try {
       const response = await api.get(`/quiz/info/${quizId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      setQuizInfo(response.data.quiz);
-    } catch {}
-  }
+      
+      const quizData = response.data.quiz;
+      setQuizInfo(quizData);
 
-  async function saveAnswer(questionId, answer) {
-    try {
-      const question = questions.find((q) => q.id === questionId);
-      let finalAnswer = answer;
-
-      if (question?.question_type === "short_answer") {
-        finalAnswer = answer.replace(/\s+/g, " ");
+      if (quizData?.started_at) {
+        localStorage.setItem("quizStartedAt", quizData.started_at);
       }
+    } catch (err) {
+      console.error("Gagal mengambil info kuis:", err);
+    }
+  }, [quizId, token]);
 
-      const newAnswers = {
-        ...savedAnswers,
-        [questionId]: finalAnswer,
-      };
+  const fetchSavedAnswers = useCallback(async () => {
+    try {
+      const res = await api.get("/quiz/recover", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      setSavedAnswers(newAnswers);
-      localStorage.setItem("savedAnswers", JSON.stringify(newAnswers));
+      if (res.data.success && res.data.answers) {
+        const restored = {};
 
-      let payload = { questionId };
+        res.data.answers.forEach((item) => {
+          if (item.selected_option_id) {
+            restored[item.question_id] = item.selected_option_id;
+          } else if (item.text_answer !== null && item.text_answer !== undefined) {
+            restored[item.question_id] = item.text_answer;
+          }
+        });
 
-      if (question?.question_type === "multiple_choice") {
+        setSavedAnswers(restored);
+        localStorage.setItem("savedAnswers", JSON.stringify(restored));
+      }
+    } catch (err) {
+      console.error("Gagal memulihkan jawaban dari database:", err);
+    }
+  }, [token]);
+
+  const triggerAutosaveAPI = useCallback(async (question, finalAnswer) => {
+    try {
+      let payload = { questionId: question.id };
+
+      if (question.question_type === "multiple_choice") {
         payload.selectedOptionId = finalAnswer;
       } else {
-        payload.textAnswer = finalAnswer.trim();
+        payload.textAnswer = String(finalAnswer).trim();
       }
 
       await api.post("/quiz/autosave", payload, {
@@ -180,18 +213,47 @@ export default function Quiz() {
           Authorization: `Bearer ${token}`,
         },
       });
-    } catch {}
+    } catch (err) {
+      console.error("Autosave failed:", err);
+    }
+  }, [token]);
+
+  async function saveAnswer(questionId, rawAnswer, isImmediate = false) {
+    const question = questions.find((q) => q.id === questionId);
+    if (!question) return;
+
+    let finalAnswer = rawAnswer !== undefined && rawAnswer !== null ? rawAnswer : "";
+
+    if (question.question_type === "short_answer" && typeof finalAnswer === "string") {
+      finalAnswer = finalAnswer.replace(/\s+/g, " ");
+    }
+
+    setSavedAnswers((prev) => {
+      const updated = { ...prev, [questionId]: finalAnswer };
+      localStorage.setItem("savedAnswers", JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isImmediate || question.question_type === "multiple_choice") {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      await triggerAutosaveAPI(question, finalAnswer);
+    } else {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        triggerAutosaveAPI(question, finalAnswer);
+      }, 600);
+    }
   }
-  
+
   function toggleMarkQuestion(questionId) {
     setMarkedQuestions((prev) =>
       prev.includes(questionId)
         ? prev.filter((id) => id !== questionId)
-        : [...prev, questionId],
+        : [...prev, questionId]
     );
   }
 
-  async function sendHeartbeat() {
+  const sendHeartbeat = useCallback(async () => {
     if (isFinished) return;
     try {
       await api.post(
@@ -201,23 +263,17 @@ export default function Quiz() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        },
+        }
       );
     } catch {}
-  }
+  }, [isFinished, token]);
 
   useEffect(() => {
     fetchQuestions();
     fetchQuizInfo();
-  }, []);
-  
-  useEffect(() => {
-    const stored = localStorage.getItem("savedAnswers");
-    if (stored) {
-      setSavedAnswers(JSON.parse(stored));
-    }
-  }, []);
-  
+    fetchSavedAnswers();
+  }, [fetchQuestions, fetchQuizInfo, fetchSavedAnswers]);
+
   useEffect(() => {
     const startFullscreen = async () => {
       try {
@@ -235,14 +291,10 @@ export default function Quiz() {
     if (!quizInfo || isFinished) return;
 
     const duration = quizInfo.duration_minutes * 60;
-    let started = localStorage.getItem("quizStartedAt");
+    const startedTimestamp = quizInfo.started_at || localStorage.getItem("quizStartedAt") || new Date().toISOString();
+    localStorage.setItem("quizStartedAt", startedTimestamp);
 
-    if (!started) {
-      started = new Date().toISOString();
-      localStorage.setItem("quizStartedAt", started);
-    }
-
-    const startedAt = new Date(started);
+    const startedAt = new Date(startedTimestamp);
 
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 1000);
@@ -264,7 +316,7 @@ export default function Quiz() {
     if (isFinished) return;
     const interval = setInterval(sendHeartbeat, 15000);
     return () => clearInterval(interval);
-  }, [isFinished]);
+  }, [isFinished, sendHeartbeat]);
 
   useEffect(() => {
     if (isFinished) return;
@@ -278,7 +330,7 @@ export default function Quiz() {
         await submitQuiz("cheated");
       }
     };
-    
+
     channel.postMessage({
       type: "TAB_OPENED",
       tabId,
@@ -287,13 +339,25 @@ export default function Quiz() {
     return () => channel.close();
   }, [submitQuiz, isFinished]);
 
+  const handleExitToHome = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    navigate("/", { replace: true });
+  };
+
   function formatTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
-  
-  const answeredCount = Object.keys(savedAnswers).length;
+
+  const answeredCount = Object.keys(savedAnswers).filter(
+    (k) => savedAnswers[k] !== "" && savedAnswers[k] !== null && savedAnswers[k] !== undefined
+  ).length;
+
+  const unAnsweredCount = questions.length - answeredCount;
+  const markedCount = markedQuestions.length;
+
   const progress = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
 
   if (loading) {
@@ -320,22 +384,23 @@ export default function Quiz() {
               {isCheated ? <AlertCircle size={40} /> : <CheckCircle size={40} />}
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <h2 className={`text-xl font-extrabold tracking-tight ${isCheated ? 'text-rose-400' : 'text-[var(--text-primary)]'}`}>
               {isCheated ? "Sesi Ujian Ditutup Paksa" : "Ujian Selesai!"}
             </h2>
             <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed opacity-95">
-              {isCheated 
+              {isCheated
                 ? "Sistem mendeteksi adanya tindakan pelanggaran integritas (Membuka DevTools / Keluar layar penuh / Membuka tab ganda). Seluruh lembar pengerjaan Anda telah dibekukan dan otomatis dikirimkan ke server."
                 : "Seluruh jawaban Anda telah berhasil diarsipkan dengan aman. Terima kasih atas partisipasi Anda dalam kompetisi Tax Quiz 2026."
               }
             </p>
           </div>
-          
+
           <button
-            onClick={() => navigate("/")}
-            className={`w-full py-3 rounded-xl font-bold text-xs transition shadow-sm ${
+            type="button"
+            onClick={handleExitToHome}
+            className={`w-full py-3 rounded-xl font-bold text-xs transition shadow-sm cursor-pointer ${
               isCheated ? 'bg-rose-500 hover:bg-rose-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
             }`}
           >
@@ -347,16 +412,16 @@ export default function Quiz() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-6 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        
+    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-6 sm:px-6 lg:px-8 relative">
+      <div className="max-w-7xl mx-auto space-y-6">
+
         {/* HEADER TRACKER */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-slate-800/40">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-800/40">
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">Quiz Session</h1>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">Jawablah semua pertanyaan secara jujur sebelum tenggat berakhir.</p>
           </div>
-          
+
           {/* TIMER */}
           <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-4 py-2.5 rounded-xl text-rose-400 font-mono font-bold text-sm shadow-inner">
             <Clock3 size={16} className="opacity-80" />
@@ -366,7 +431,7 @@ export default function Quiz() {
 
         {/* BROADCAST MESSAGES */}
         {message && (
-          <div className="mb-6 flex items-start gap-3 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 animate-in fade-in duration-200">
             <AlertCircle size={18} className="shrink-0 mt-0.5" />
             <span className="text-xs font-medium leading-relaxed">{message}</span>
           </div>
@@ -374,17 +439,18 @@ export default function Quiz() {
 
         {/* WORKSPACE AREA */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-          
+
           {/* LEFT SIDE: MAIN QUESTION CELL */}
           <div className="lg:col-span-3">
             {questions[currentQuestion] && (
               <div className="bg-[var(--surface)] border border-slate-800/60 rounded-2xl p-5 sm:p-6 shadow-md shadow-black/5">
                 <div className="flex justify-between items-center mb-6 pb-3 border-b border-slate-800/40">
                   <h2 className="font-extrabold text-lg sm:text-xl tracking-tight">Soal {currentQuestion + 1}</h2>
-                  
+
                   <button
+                    type="button"
                     onClick={() => toggleMarkQuestion(questions[currentQuestion].id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                       markedQuestions.includes(questions[currentQuestion].id)
                         ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
                         : "bg-slate-800/40 border-slate-800 text-slate-400 hover:bg-slate-800"
@@ -417,7 +483,7 @@ export default function Quiz() {
                             type="radio"
                             name="quiz_option"
                             checked={isSelected}
-                            onChange={() => saveAnswer(questions[currentQuestion].id, option.id)}
+                            onChange={() => saveAnswer(questions[currentQuestion].id, option.id, true)}
                             className="w-4 h-4 text-indigo-500 focus:ring-indigo-500/20 accent-indigo-500 mt-0.5 cursor-pointer"
                           />
                           <span className="leading-relaxed">{option.option_text}</span>
@@ -429,7 +495,8 @@ export default function Quiz() {
                   <textarea
                     placeholder="Ketikkan jawaban Anda secara singkat di sini..."
                     value={savedAnswers[questions[currentQuestion].id] || ""}
-                    onChange={(e) => saveAnswer(questions[currentQuestion].id, e.target.value)}
+                    onChange={(e) => saveAnswer(questions[currentQuestion].id, e.target.value, false)}
+                    onBlur={(e) => saveAnswer(questions[currentQuestion].id, e.target.value, true)}
                     className="w-full h-32 bg-[var(--background)] border border-slate-800 rounded-xl p-4 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none resize-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10 transition"
                   />
                 )}
@@ -437,16 +504,18 @@ export default function Quiz() {
                 {/* STEERING PAGINATION BUTTONS */}
                 <div className="flex gap-3 mt-8 pt-4 border-t border-slate-800/40">
                   <button
+                    type="button"
                     disabled={currentQuestion === 0}
                     onClick={() => setCurrentQuestion(currentQuestion - 1)}
-                    className="flex-1 bg-slate-800/40 text-slate-300 border border-slate-800 hover:bg-slate-800 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="flex-1 bg-slate-800/40 text-slate-300 border border-slate-800 hover:bg-slate-800 py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                   >
                     Sebelumnya
                   </button>
                   <button
+                    type="button"
                     disabled={currentQuestion === questions.length - 1}
                     onClick={() => setCurrentQuestion(currentQuestion + 1)}
-                    className="flex-1 bg-[var(--secondary)] hover:opacity-95 text-[var(--background)] py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="flex-1 bg-[var(--secondary)] hover:opacity-95 text-[var(--background)] py-2.5 rounded-xl text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                   >
                     Selanjutnya
                   </button>
@@ -472,7 +541,8 @@ export default function Quiz() {
             <div className="grid grid-cols-5 gap-1.5 max-h-64 overflow-y-auto pr-0.5 custom-scrollbar">
               {questions.map((question, index) => {
                 const isCurrent = currentQuestion === index;
-                const isAnswered = !!savedAnswers[question.id];
+                const answerVal = savedAnswers[question.id];
+                const isAnswered = answerVal !== undefined && answerVal !== null && answerVal !== "";
                 const isMarked = markedQuestions.includes(question.id);
 
                 let badgeStyles = "bg-slate-800/40 text-slate-400 border-slate-800 hover:border-slate-700";
@@ -486,9 +556,10 @@ export default function Quiz() {
 
                 return (
                   <button
+                    type="button"
                     key={question.id}
                     onClick={() => setCurrentQuestion(index)}
-                    className={`h-9 border rounded-lg text-xs font-bold transition-all ${badgeStyles}`}
+                    className={`h-9 border rounded-lg text-xs font-bold transition-all cursor-pointer ${badgeStyles}`}
                   >
                     {index + 1}
                   </button>
@@ -515,9 +586,10 @@ export default function Quiz() {
             {/* FINISH SUBMIT BUTTON */}
             <div className="pt-2">
               <button
-                onClick={() => submitQuiz("normal")}
+                type="button"
+                onClick={() => setShowSubmitModal(true)}
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 py-3 rounded-xl text-xs font-bold transition-all duration-300 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 py-3 rounded-xl text-xs font-bold transition-all duration-300 disabled:opacity-50 cursor-pointer"
               >
                 <Send size={13} />
                 <span>Akhiri Sesi Ujian</span>
@@ -528,6 +600,81 @@ export default function Quiz() {
         </div>
 
       </div>
+
+      {/* ========================================== */}
+      {/* MODAL KONFIRMASI SUBMIT UJIAN               */}
+      {/* ========================================== */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[var(--surface)] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+              <div className="flex items-center gap-2 text-rose-400">
+                <HelpCircle size={20} />
+                <h3 className="font-bold text-base text-[var(--text-primary)]">
+                  Konfirmasi Akhiri Ujian
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
+              <p>
+                Apakah Anda yakin ingin menyelesaikan dan mengirimkan lembar jawaban ujian ini?
+              </p>
+
+              {/* STATISTIK PENGERJAAN */}
+              <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Sudah Dijawab:</span>
+                  <span className="font-bold text-emerald-400">{answeredCount} Soal</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Belum Dijawab:</span>
+                  <span className={`font-bold ${unAnsweredCount > 0 ? "text-rose-400" : "text-slate-300"}`}>
+                    {unAnsweredCount} Soal
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Ragu-ragu (Ditandai):</span>
+                  <span className={`font-bold ${markedCount > 0 ? "text-amber-400" : "text-slate-300"}`}>
+                    {markedCount} Soal
+                  </span>
+                </div>
+              </div>
+
+              {unAnsweredCount > 0 && (
+                <p className="text-rose-400 font-semibold text-[11px]">
+                  ⚠️ Masih ada {unAnsweredCount} soal yang belum Anda jawab. Soal yang kosong tidak akan mendapatkan poin.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-800 hover:bg-slate-800 text-xs font-bold text-slate-300 transition cursor-pointer"
+              >
+                Periksa Kembali
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => submitQuiz("normal")}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-md shadow-rose-600/20 disabled:opacity-50 cursor-pointer"
+              >
+                {submitting ? "Mengirim..." : "Ya, Akhiri Ujian"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

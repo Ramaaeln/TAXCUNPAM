@@ -28,6 +28,7 @@ export default function GenerateToken() {
     quiz_id: "",
     count: 1,
     expires_in_minutes: 1440,
+    max_usage: 1, // Parameter max usage untuk mendukung token darurat/recovery
   });
 
   useEffect(() => {
