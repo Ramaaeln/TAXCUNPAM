@@ -23,91 +23,190 @@ router.post("/", verifyParticipant, async (req, res) => {
       });
     }
 
-    // 1. Ambil data attempt aktif peserta
+    const allowedViolationTypes = [
+      "tab_switch",
+      "blur",
+      "fullscreen_exit",
+      "devtools",
+    ];
+
+    if (!allowedViolationTypes.includes(violationType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid violation type",
+      });
+    }
+
+    // =====================================================
+    // 1. Ambil attempt peserta
+    // =====================================================
     const { data: attempt, error: attemptError } = await supabase
       .from("quiz_attempts")
       .select("*")
       .eq("id", attemptId)
       .maybeSingle();
 
-    if (attemptError || !attempt) {
+    if (attemptError) {
+      console.error("Failed loading attempt:", attemptError);
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed loading attempt",
+      });
+    }
+
+    if (!attempt) {
       return res.status(404).json({
         success: false,
         message: "Attempt not found",
       });
     }
 
-    // Jika ujian sudah selesai/diskualifikasi, abaikan pencatatan ulang
-    if (
-      ["submitted", "disqualified", "auto_submitted", "timeout"].includes(
-        attempt.status
-      )
-    ) {
+    // =====================================================
+    // 2. Kalau attempt sudah selesai, jangan catat violation lagi
+    // =====================================================
+    const finishedStatuses = [
+      "submitted",
+      "disqualified",
+      "auto_submitted",
+      "timeout",
+    ];
+
+    if (finishedStatuses.includes(attempt.status)) {
+      const isDisqualified =
+        attempt.status === "disqualified" ||
+        attempt.status === "auto_submitted";
+
       return res.json({
         success: true,
         message: "Attempt already finished",
-        autoSubmitted: true,
-        disqualified: true,
+
+        autoSubmitted: isDisqualified,
+        disqualified: isDisqualified,
+
+        status: attempt.status,
+        disqualifiedReason: attempt.disqualified_reason ?? null,
       });
     }
 
-    // 2. Catat log pelanggaran ke violation_logs
-    await supabase.from("violation_logs").insert({
-      attempt_id: attemptId,
-      violation_type: violationType,
-      description: description || null,
-      created_at: new Date().toISOString(),
-    });
-
-    // 3. Akumulasi jumlah pelanggaran berdasarkan tipe
-    const updateData = {
-      violation_count: (attempt.violation_count || 0) + 1,
-    };
-
-    if (violationType === "tab_switch") {
-      updateData.tab_switch_violations = (attempt.tab_switch_violations || 0) + 1;
-    }
-
-    if (violationType === "blur") {
-      updateData.blur_violations = (attempt.blur_violations || 0) + 1;
-    }
-
-    if (violationType === "fullscreen_exit") {
-      updateData.fullscreen_violations = (attempt.fullscreen_violations || 0) + 1;
-    }
-
-    if (violationType === "devtools") {
-      updateData.devtools_violations = (attempt.devtools_violations || 0) + 1;
-    }
-
-    // 4. Ambil pengaturan batas toleransi kuis
-    const { data: settings } = await supabase
+    // =====================================================
+    // 3. Ambil settings quiz
+    // =====================================================
+    const { data: settings, error: settingsError } = await supabase
       .from("quiz_settings")
       .select("*")
       .eq("quiz_id", attempt.quiz_id)
       .maybeSingle();
 
+    if (settingsError) {
+      console.error("Failed loading quiz settings:", settingsError);
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed loading quiz settings",
+      });
+    }
+
+    // Gunakan ?? supaya nilai 0 tetap valid
+    const maxTabSwitch = settings?.max_tab_switch ?? 1;
+    const maxBlur = settings?.max_blur ?? 1;
+
+    // =====================================================
+    // 4. Hitung violation berikutnya
+    // =====================================================
+    const currentViolationCount = attempt.violation_count ?? 0;
+
+    const currentTabSwitch = attempt.tab_switch_violations ?? 0;
+    const currentBlur = attempt.blur_violations ?? 0;
+    const currentFullscreen = attempt.fullscreen_violations ?? 0;
+    const currentDevtools = attempt.devtools_violations ?? 0;
+
+    const updateData = {
+      violation_count: currentViolationCount + 1,
+    };
+
+    if (violationType === "tab_switch") {
+      updateData.tab_switch_violations = currentTabSwitch + 1;
+    }
+
+    if (violationType === "blur") {
+      updateData.blur_violations = currentBlur + 1;
+    }
+
+    if (violationType === "fullscreen_exit") {
+      updateData.fullscreen_violations = currentFullscreen + 1;
+    }
+
+    if (violationType === "devtools") {
+      updateData.devtools_violations = currentDevtools + 1;
+    }
+
+    // =====================================================
+    // 5. Tentukan apakah harus auto-submit
+    // =====================================================
     let shouldAutoSubmit = false;
 
     if (
       violationType === "tab_switch" &&
-      updateData.tab_switch_violations >= (settings?.max_tab_switch || 1)
+      updateData.tab_switch_violations >= maxTabSwitch
     ) {
       shouldAutoSubmit = true;
     }
 
     if (
       violationType === "blur" &&
-      updateData.blur_violations >= (settings?.max_blur || 1)
+      updateData.blur_violations >= maxBlur
     ) {
       shouldAutoSubmit = true;
     }
 
-    if (violationType === "fullscreen_exit" || violationType === "devtools") {
+    // Fullscreen exit langsung fatal
+    if (violationType === "fullscreen_exit") {
       shouldAutoSubmit = true;
     }
 
-    // 5. Jika mencapai batas, ubah status menjadi disqualified
+    /*
+      DevTools:
+
+      Karena frontend DevTools detector tidak 100% akurat,
+      gue lebih saranin jangan langsung diskualifikasi pada
+      deteksi pertama.
+
+      Contoh: baru auto-submit setelah 2 violation.
+    */
+    const maxDevtoolsViolation = settings?.max_devtools ?? 2;
+
+    if (
+      violationType === "devtools" &&
+      updateData.devtools_violations >= maxDevtoolsViolation
+    ) {
+      shouldAutoSubmit = true;
+    }
+
+    // =====================================================
+    // 6. Catat violation log
+    // =====================================================
+    const { error: logError } = await supabase
+      .from("violation_logs")
+      .insert({
+        attempt_id: attemptId,
+        violation_type: violationType,
+        description: description || null,
+        created_at: new Date().toISOString(),
+      });
+
+    if (logError) {
+      console.error("Failed inserting violation log:", logError);
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed saving violation log",
+      });
+    }
+
+    // =====================================================
+    // 7. Kalau kena batas, tandai disqualified
+    // =====================================================
     if (shouldAutoSubmit) {
       updateData.status = "disqualified";
       updateData.auto_submitted = true;
@@ -115,31 +214,63 @@ router.post("/", verifyParticipant, async (req, res) => {
       updateData.disqualified_reason = violationType;
     }
 
-    // 6. Update data attempt di Supabase
+    // =====================================================
+    // 8. Update attempt
+    // =====================================================
     const { error: updateError } = await supabase
       .from("quiz_attempts")
       .update(updateData)
       .eq("id", attemptId);
 
     if (updateError) {
-      console.error("Error updating violation count:", updateError);
+      console.error("Failed updating attempt:", updateError);
+
       return res.status(500).json({
         success: false,
-        message: "Failed update attempt",
+        message: "Failed updating attempt",
       });
     }
 
-    // CATATAN: Langkah mematikan is_active = false DIHAPUS dari sini
-    // agar token JWT tetap bisa digunakan frontend saat memproses auto-submit atau memuat halaman hasil.
+    // =====================================================
+    // 9. Response
+    // =====================================================
     return res.json({
       success: true,
+
       autoSubmitted: shouldAutoSubmit,
       disqualified: shouldAutoSubmit,
-      disqualifiedReason: violationType,
+
+      disqualifiedReason: shouldAutoSubmit
+        ? violationType
+        : null,
+
+      violationType,
       violationCount: updateData.violation_count,
+
+      violations: {
+        tabSwitch:
+          updateData.tab_switch_violations ??
+          currentTabSwitch,
+
+        blur:
+          updateData.blur_violations ??
+          currentBlur,
+
+        fullscreen:
+          updateData.fullscreen_violations ??
+          currentFullscreen,
+
+        devtools:
+          updateData.devtools_violations ??
+          currentDevtools,
+      },
     });
   } catch (error) {
-    console.error("Violation endpoint internal error:", error);
+    console.error(
+      "Violation endpoint internal error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: "Internal server error",

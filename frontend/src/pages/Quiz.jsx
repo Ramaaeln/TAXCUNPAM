@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import useAntiCheat from "../hooks/useAntiCheat";
 import useDevtoolsDetect from "../hooks/useDevtoolsDetect";
+import useQuizProtection from "../hooks/useQuizProtection";
 import { Clock3, Flag, Send, AlertCircle, CheckCircle, HelpCircle, X } from "lucide-react";
 import logo from "../assets/MASCOT.png";
 import useDocumentTitle from "../hooks/useDocumentTitle";
@@ -10,6 +11,7 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 export default function Quiz() {
   const navigate = useNavigate();
   useDocumentTitle("Quiz | UTCBT");
+  useQuizProtection();
 
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,25 +26,37 @@ export default function Quiz() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("error");
 
-  // State untuk Modal Konfirmasi Submit Akhiri Ujian
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
-  // Debounce ref untuk autosave input teks
+  // Ref untuk menghindari stale closure pada callback async/event listener
   const saveTimeoutRef = useRef(null);
-  const savedAnswersRef = useRef(savedAnswers);
+  const submittingRef = useRef(false);
+  const isFinishedRef = useRef(false);
 
   // Sync ref dengan state
   useEffect(() => {
-    savedAnswersRef.current = savedAnswers;
-  }, [savedAnswers]);
+    isFinishedRef.current = isFinished;
+  }, [isFinished]);
+
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
+
+  // Clean up timeout saat unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
 
   const token = localStorage.getItem("accessToken");
   const quizId = localStorage.getItem("quizId");
 
   const submitQuiz = useCallback(async (type = "normal") => {
-    if (submitting) return;
+    if (submittingRef.current || isFinishedRef.current) return;
 
     try {
+      submittingRef.current = true;
       setSubmitting(true);
       setFinishType(type);
       setShowSubmitModal(false);
@@ -51,15 +65,14 @@ export default function Quiz() {
         "/quiz/submit",
         { reason: type },
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
     } catch (error) {
       if (type === "normal") {
         setMessageType("error");
         setMessage(error.response?.data?.message || "Submit kuis gagal.");
+        submittingRef.current = false;
         setSubmitting(false);
         return;
       }
@@ -72,75 +85,34 @@ export default function Quiz() {
         sessionStorage.setItem("quizAutoSubmitted", "true");
       }
 
-      // KELUAR FULLSCREEN
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
 
+      isFinishedRef.current = true;
       setIsFinished(true);
+      submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [token, submitting]);
+  }, [token]);
 
-  // GUARD ANTI-CHEAT
+  // GUARD ANTI-CHEAT DENGAN REF
   useAntiCheat(token, async () => {
-    if (isFinished) return;
+    if (isFinishedRef.current) return;
     sessionStorage.setItem("quizAutoSubmitted", "true");
     await submitQuiz("cheated");
   });
 
   useDevtoolsDetect(token, () => {
-    if (isFinished) return;
+    if (isFinishedRef.current) return;
     submitQuiz("cheated");
   });
 
-  // MENCEGAH SHORTCUT PENGEMBANG
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      const targetTag = event.target.tagName?.toLowerCase();
-
-      if (targetTag === "textarea" || targetTag === "input") {
-        if (event.key === " " && !event.ctrlKey && !event.altKey) {
-          return;
-        }
-      }
-
-      if (event.key === "F12") {
-        event.preventDefault();
-        return;
-      }
-
-      if (
-        event.ctrlKey &&
-        event.shiftKey &&
-        ["I", "J", "C", "S"].includes(event.key.toUpperCase())
-      ) {
-        event.preventDefault();
-        return;
-      }
-
-      if (event.ctrlKey && event.key.toLowerCase() === "u") {
-        event.preventDefault();
-        return;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  useEffect(() => {
-    const disableContextMenu = (e) => e.preventDefault();
-    document.addEventListener("contextmenu", disableContextMenu);
-    return () => document.removeEventListener("contextmenu", disableContextMenu);
-  }, []);
 
   const fetchQuestions = useCallback(async () => {
     try {
       const response = await api.get(`/quiz/questions/${quizId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       setQuestions(response.data.questions || []);
     } catch (error) {
@@ -155,11 +127,9 @@ export default function Quiz() {
   const fetchQuizInfo = useCallback(async () => {
     try {
       const response = await api.get(`/quiz/info/${quizId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       const quizData = response.data.quiz;
       setQuizInfo(quizData);
 
@@ -174,9 +144,7 @@ export default function Quiz() {
   const fetchSavedAnswers = useCallback(async () => {
     try {
       const res = await api.get("/quiz/recover", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.data.success && res.data.answers) {
@@ -209,9 +177,7 @@ export default function Quiz() {
       }
 
       await api.post("/quiz/autosave", payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
     } catch (err) {
       console.error("Autosave failed:", err);
@@ -234,11 +200,11 @@ export default function Quiz() {
       return updated;
     });
 
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
     if (isImmediate || question.question_type === "multiple_choice") {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       await triggerAutosaveAPI(question, finalAnswer);
     } else {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(() => {
         triggerAutosaveAPI(question, finalAnswer);
       }, 600);
@@ -254,19 +220,15 @@ export default function Quiz() {
   }
 
   const sendHeartbeat = useCallback(async () => {
-    if (isFinished) return;
+    if (isFinishedRef.current) return;
     try {
       await api.post(
         "/quiz/heartbeat",
         {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
     } catch {}
-  }, [isFinished, token]);
+  }, [token]);
 
   useEffect(() => {
     fetchQuestions();
@@ -277,7 +239,7 @@ export default function Quiz() {
   useEffect(() => {
     const startFullscreen = async () => {
       try {
-        if (!document.fullscreenElement && !isFinished) {
+        if (!document.fullscreenElement && !isFinishedRef.current) {
           await document.documentElement.requestFullscreen();
         }
       } catch {}
@@ -285,7 +247,7 @@ export default function Quiz() {
 
     window.addEventListener("click", startFullscreen, { once: true });
     return () => window.removeEventListener("click", startFullscreen);
-  }, [isFinished]);
+  }, []);
 
   useEffect(() => {
     if (!quizInfo || isFinished) return;
@@ -302,6 +264,7 @@ export default function Quiz() {
 
       if (remain <= 0) {
         clearInterval(interval);
+        setTimeLeft(0);
         submitQuiz("normal");
         return;
       }
@@ -360,6 +323,7 @@ export default function Quiz() {
 
   const progress = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
 
+  // RENDER JSX TETAP SAMA SEPERTI SEBELUMNYA...
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center gap-4 px-4 antialiased">
@@ -412,7 +376,7 @@ export default function Quiz() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-6 sm:px-6 lg:px-8 relative">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] antialiased px-4 py-6 sm:px-6 lg:px-8 relative select-none">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* HEADER TRACKER */}
@@ -497,7 +461,7 @@ export default function Quiz() {
                     value={savedAnswers[questions[currentQuestion].id] || ""}
                     onChange={(e) => saveAnswer(questions[currentQuestion].id, e.target.value, false)}
                     onBlur={(e) => saveAnswer(questions[currentQuestion].id, e.target.value, true)}
-                    className="w-full h-32 bg-[var(--background)] border border-slate-800 rounded-xl p-4 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none resize-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10 transition"
+                    className="w-full h-32 bg-[var(--background)] border border-slate-800 rounded-xl p-4 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none resize-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/10 transition select-text"
                   />
                 )}
 
@@ -601,16 +565,14 @@ export default function Quiz() {
 
       </div>
 
-      {/* ========================================== */}
-      {/* MODAL KONFIRMASI SUBMIT UJIAN               */}
-      {/* ========================================== */}
+      {/* MODAL KONFIRMASI SUBMIT UJIAN */}
       {showSubmitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-[var(--surface)] border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
               <div className="flex items-center gap-2 text-rose-400">
                 <HelpCircle size={20} />
-                <h3 className="font-bold text-base text-[var(--text-primary)]">
+                <h3 className="font-bold text-base text-(--text-primary)">
                   Konfirmasi Akhiri Ujian
                 </h3>
               </div>
@@ -623,12 +585,11 @@ export default function Quiz() {
               </button>
             </div>
 
-            <div className="space-y-4 text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
+            <div className="space-y-4 text-xs sm:text-sm text-(--text-secondary) leading-relaxed">
               <p>
                 Apakah Anda yakin ingin menyelesaikan dan mengirimkan lembar jawaban ujian ini?
               </p>
 
-              {/* STATISTIK PENGERJAAN */}
               <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Sudah Dijawab:</span>
