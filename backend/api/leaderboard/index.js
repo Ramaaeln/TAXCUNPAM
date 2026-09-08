@@ -27,7 +27,7 @@ router.get(
         error
       } = await supabase
         .from("leaderboard_view")
-        .select("*")
+        .select("quiz_id, participant_name, score, duration_seconds")
         .eq("quiz_id", quizId)
         .order("score", {
           ascending: false

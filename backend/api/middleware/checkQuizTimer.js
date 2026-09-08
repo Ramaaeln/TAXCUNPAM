@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase.js";
+import { finalizeAttempt } from "../utils/finalizeAttempt.js";
 
 // Tambahkan kata kunci 'export' sebelum 'function'
 export async function checkQuizTimer(req, res, next) {
@@ -43,30 +44,28 @@ export async function checkQuizTimer(req, res, next) {
     }
 
     const startedAt = new Date(attempt.started_at);
-    const durationMs = (attempt.quizzes?.duration_minutes || 0) * 60 * 1000;
+    const durationMs = Number(attempt.quizzes?.duration_minutes) * 60 * 1000;
+    if (!Number.isFinite(startedAt.getTime()) || !Number.isFinite(durationMs) || durationMs <= 0) {
+      return res.status(503).json({ success: false, message: "Quiz timer configuration invalid" });
+    }
     const gracePeriodMs = 15 * 1000;
     const endTime = new Date(startedAt.getTime() + durationMs + gracePeriodMs);
     const now = new Date();
+    req.isTimeout = now.getTime() >= startedAt.getTime() + durationMs;
 
     if (now > endTime) {
-      if (req.originalUrl.includes("/submit")) {
+      if (req.originalUrl.includes("/submit") || req.method === "GET") {
         req.isTimeout = true;
         req.attempt = attempt;
         return next();
       }
 
-      await supabase
-        .from("quiz_attempts")
-        .update({
-          status: "timeout",
-          submitted_at: new Date().toISOString(),
-          auto_submitted: true,
-        })
-        .eq("id", attemptId);
+      await finalizeAttempt(attempt, "timeout");
 
       return res.status(403).json({
         success: false,
         message: "Quiz time expired",
+        code: "QUIZ_EXPIRED",
       });
     }
 

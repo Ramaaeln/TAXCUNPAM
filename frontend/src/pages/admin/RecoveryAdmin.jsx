@@ -35,7 +35,7 @@ export default function RecoveryAdmin() {
   const [participants, setParticipants] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [generatedEmergencyToken, setGeneratedEmergencyToken] = useState("");
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(Date.now);
 
   // State Pilihan Sisa Menit Peserta { [attemptId]: 15 }
   const [customMinutesMap, setCustomMinutesMap] = useState({});
@@ -56,12 +56,12 @@ export default function RecoveryAdmin() {
   });
 
   // Helper untuk menampilkan toast dengan durasi otomatis
-  const showToast = (message, type = "success") => {
+  const showToast = useCallback((message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => {
       setToast((prev) => ({ ...prev, show: false }));
     }, 4000);
-  };
+  }, []);
 
   // Timer interval untuk memperbarui hitung mundur sisa waktu setiap detik
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function RecoveryAdmin() {
     return () => clearInterval(timer);
   }, []);
 
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await api.get("/admin/quizzes", {
@@ -81,7 +81,7 @@ export default function RecoveryAdmin() {
     } catch {
       showToast("Gagal memuat daftar kuis.", "error");
     }
-  };
+  }, [showToast]);
 
   const fetchParticipants = useCallback(async () => {
     try {
@@ -108,9 +108,9 @@ export default function RecoveryAdmin() {
   }, []);
 
   useEffect(() => {
-    fetchQuizzes();
-    fetchParticipants();
-  }, [fetchParticipants]);
+    const timer = setTimeout(() => { fetchQuizzes(); fetchParticipants(); }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchParticipants, fetchQuizzes]);
 
   // Kalkulasi sisa waktu berdasarkan started_at & durasi kuis
   function getRemainingTime(startedAt, durationMinutes) {

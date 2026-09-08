@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import useAntiCheat from "../hooks/useAntiCheat";
-import useDevtoolsDetect from "../hooks/useDevtoolsDetect";
+import { createQuizClock, remainingSeconds } from "../utils/quizClock";
+import { createAnswerQueue } from "../utils/answerQueue";
 import useQuizProtection from "../hooks/useQuizProtection";
 import { Clock3, Flag, Send, AlertCircle, CheckCircle, HelpCircle, X } from "lucide-react";
 import logo from "../assets/MASCOT.png";
@@ -24,7 +25,7 @@ export default function Quiz() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [markedQuestions, setMarkedQuestions] = useState([]);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("error");
+  const [loadError, setLoadError] = useState(false);
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
@@ -32,6 +33,8 @@ export default function Quiz() {
   const saveTimeoutRef = useRef(null);
   const submittingRef = useRef(false);
   const isFinishedRef = useRef(false);
+  const clockRef = useRef(null);
+  const retryAfterRef = useRef(0);
 
   // Sync ref dengan state
   useEffect(() => {
@@ -51,6 +54,33 @@ export default function Quiz() {
 
   const token = localStorage.getItem("accessToken");
   const quizId = localStorage.getItem("quizId");
+  const attemptId = localStorage.getItem("attemptId");
+  const [answerQueue] = useState(() => createAnswerQueue(async (question, answer) => {
+    const payload = { questionId: question.id };
+    if (question.question_type === "multiple_choice") payload.selectedOptionId = answer;
+    else payload.textAnswer = String(answer).trim();
+    await api.post("/quiz/autosave", payload, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    try {
+      const pending = JSON.parse(localStorage.getItem("pendingAnswers") || "{}");
+      if (pending[question.id] === answer) delete pending[question.id];
+      localStorage.setItem("pendingAnswers", JSON.stringify(pending));
+    } catch { /* The server has already acknowledged this answer. */ }
+  }));
+
+  const finishQuiz = useCallback((status) => {
+    isFinishedRef.current = true;
+    setFinishType(["auto_submitted", "disqualified"].includes(status) ? "cheated" : "normal");
+    setIsFinished(true);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    localStorage.removeItem("quizStartedAt");
+    localStorage.removeItem("savedAnswers");
+    localStorage.removeItem("pendingAnswers");
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
 
   const submitQuiz = useCallback(async (type = "normal") => {
     if (submittingRef.current || isFinishedRef.current) return;
@@ -60,99 +90,66 @@ export default function Quiz() {
       setSubmitting(true);
       setFinishType(type);
       setShowSubmitModal(false);
-
-      await api.post(
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      try {
+        await answerQueue.flush();
+      } catch (error) {
+        if (error.response?.data?.code !== "QUIZ_EXPIRED") throw error;
+      }
+      const response = await api.post(
         "/quiz/submit",
         { reason: type },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+      if (!response.data?.success) throw new Error("Submit kuis gagal.");
+      finishQuiz(response.data.result?.status);
     } catch (error) {
-      if (type === "normal") {
-        setMessageType("error");
-        setMessage(error.response?.data?.message || "Submit kuis gagal.");
-        submittingRef.current = false;
-        setSubmitting(false);
-        return;
-      }
+      setMessage(error.response?.data?.message || "Jawaban belum terkirim. Periksa koneksi lalu coba lagi.");
+      retryAfterRef.current = performance.now() + 10000;
     } finally {
-      localStorage.removeItem("quizStartedAt");
-      localStorage.removeItem("attemptId");
-      localStorage.removeItem("savedAnswers");
-
-      if (type === "cheated") {
-        sessionStorage.setItem("quizAutoSubmitted", "true");
-      }
-
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-
-      isFinishedRef.current = true;
-      setIsFinished(true);
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [token]);
+  }, [token, answerQueue, finishQuiz]);
 
   // GUARD ANTI-CHEAT DENGAN REF
-  useAntiCheat(token, async () => {
-    if (isFinishedRef.current) return;
-    sessionStorage.setItem("quizAutoSubmitted", "true");
-    await submitQuiz("cheated");
-  });
-
-  useDevtoolsDetect(token, () => {
-    if (isFinishedRef.current) return;
-    submitQuiz("cheated");
-  });
+  useAntiCheat(token, () => finishQuiz("disqualified"), loading || loadError || submitting || isFinished);
 
 
   const fetchQuestions = useCallback(async () => {
-    try {
       const response = await api.get(`/quiz/questions/${quizId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setQuestions(response.data.questions || []);
-    } catch (error) {
-      setMessageType("error");
-      setMessage(error.response?.data?.message || "Gagal memuat soal.");
-      setTimeout(() => navigate("/"), 1500);
-    } finally {
-      setLoading(false);
-    }
-  }, [quizId, token, navigate]);
+      if (!response.data.questions?.length) throw new Error("Belum ada soal tersedia. Hubungi panitia.");
+  }, [quizId, token]);
 
   const fetchQuizInfo = useCallback(async () => {
-    try {
       const response = await api.get(`/quiz/info/${quizId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       const quizData = response.data.quiz;
+      clockRef.current = createQuizClock(quizData);
+      setTimeLeft(remainingSeconds(clockRef.current));
       setQuizInfo(quizData);
 
       if (quizData?.started_at) {
         localStorage.setItem("quizStartedAt", quizData.started_at);
       }
-    } catch (err) {
-      console.error("Gagal mengambil info kuis:", err);
-    }
   }, [quizId, token]);
 
   const fetchSavedAnswers = useCallback(async () => {
-    try {
       const res = await api.get("/quiz/recover", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.data.success) {
         if (res.data.status && res.data.status !== "in_progress") {
-          const type = (res.data.status === "auto_submitted" || res.data.status === "disqualified") ? "cheated" : "normal";
-          setFinishType(type);
-          setIsFinished(true);
-          return;
+          finishQuiz(res.data.status);
+          return false;
         }
 
         if (res.data.answers) {
@@ -166,34 +163,28 @@ export default function Quiz() {
             }
           });
 
-          setSavedAnswers(restored);
-          localStorage.setItem("savedAnswers", JSON.stringify(restored));
+          // Preserve locally queued answers after a network failure/reload.
+          let local = {};
+          try { local = JSON.parse(localStorage.getItem("pendingAnswers") || "{}"); } catch { /* Ignore corrupt cache. */ }
+          const merged = { ...restored, ...local };
+          setSavedAnswers(merged);
+          localStorage.setItem("savedAnswers", JSON.stringify(merged));
         }
       }
-    } catch (err) {
-      console.error("Gagal memulihkan jawaban dari database:", err);
-    }
-  }, [token]);
+      return true;
+  }, [token, finishQuiz]);
 
-  const triggerAutosaveAPI = useCallback(async (question, finalAnswer) => {
+  const triggerAutosaveAPI = useCallback(async () => {
     try {
-      let payload = { questionId: question.id };
-
-      if (question.question_type === "multiple_choice") {
-        payload.selectedOptionId = finalAnswer;
-      } else {
-        payload.textAnswer = String(finalAnswer).trim();
-      }
-
-      await api.post("/quiz/autosave", payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await answerQueue.flush();
+      setMessage("");
     } catch (err) {
-      console.error("Autosave failed:", err);
+      setMessage(err.response?.data?.message || "Jawaban belum tersimpan di server. Periksa koneksi Anda.");
     }
-  }, [token]);
+  }, [answerQueue]);
 
   async function saveAnswer(questionId, rawAnswer, isImmediate = false) {
+    if (submittingRef.current || isFinishedRef.current || timeLeft <= 0) return;
     const question = questions.find((q) => q.id === questionId);
     if (!question) return;
 
@@ -210,12 +201,18 @@ export default function Quiz() {
     });
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    answerQueue.enqueue(question, finalAnswer);
+    try {
+      const pending = JSON.parse(localStorage.getItem("pendingAnswers") || "{}");
+      pending[questionId] = finalAnswer;
+      localStorage.setItem("pendingAnswers", JSON.stringify(pending));
+    } catch { /* Keep the in-memory queue when storage is unavailable. */ }
 
     if (isImmediate || question.question_type === "multiple_choice") {
-      await triggerAutosaveAPI(question, finalAnswer);
+      await triggerAutosaveAPI();
     } else {
       saveTimeoutRef.current = setTimeout(() => {
-        triggerAutosaveAPI(question, finalAnswer);
+        triggerAutosaveAPI();
       }, 600);
     }
   }
@@ -231,27 +228,56 @@ export default function Quiz() {
   const sendHeartbeat = useCallback(async () => {
     if (isFinishedRef.current) return;
     try {
-      await api.post(
+      const response = await api.post(
         "/quiz/heartbeat",
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-    } catch {}
-  }, [token]);
+      if (response.data.isFinished) finishQuiz(response.data.status);
+      else await fetchQuizInfo();
+    } catch { /* Retry heartbeat on the next interval. */ }
+  }, [token, finishQuiz, fetchQuizInfo]);
 
   useEffect(() => {
-    fetchQuestions();
-    fetchQuizInfo();
-    fetchSavedAnswers();
+    let active = true;
+    async function loadQuiz() {
+      try {
+        const inProgress = await fetchSavedAnswers();
+        if (active && inProgress) await Promise.all([fetchQuestions(), fetchQuizInfo()]);
+      } catch (error) {
+        if (active) {
+          setLoadError(true);
+          setMessage(error.response?.data?.message || error.message || "Gagal memuat kuis.");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    loadQuiz();
+    return () => { active = false; };
   }, [fetchQuestions, fetchQuizInfo, fetchSavedAnswers]);
+
+  useEffect(() => {
+    if (loading || loadError || isFinished) return;
+    // Requeue recovered local answers; the server remains the source of truth for scoring.
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem("pendingAnswers") || "{}"); } catch { /* Ignore corrupt cache. */ }
+    for (const question of questions) {
+      if (Object.hasOwn(local, question.id)) answerQueue.enqueue(question, local[question.id]);
+    }
+    const retry = () => { if (!submittingRef.current && !isFinishedRef.current) void triggerAutosaveAPI(); };
+    const interval = setInterval(retry, 10000);
+    window.addEventListener("online", retry);
+    return () => { clearInterval(interval); window.removeEventListener("online", retry); };
+  }, [loading, loadError, isFinished, questions, answerQueue, triggerAutosaveAPI]);
 
   useEffect(() => {
     const startFullscreen = async () => {
       try {
-        if (!document.fullscreenElement && !isFinishedRef.current) {
+        if (document.fullscreenEnabled && document.documentElement.requestFullscreen && !document.fullscreenElement && !isFinishedRef.current) {
           await document.documentElement.requestFullscreen();
         }
-      } catch {}
+      } catch { /* Fullscreen is optional on unsupported devices. */ }
     };
 
     window.addEventListener("click", startFullscreen, { once: true });
@@ -259,22 +285,14 @@ export default function Quiz() {
   }, []);
 
   useEffect(() => {
-    if (!quizInfo || isFinished) return;
-
-    const duration = quizInfo.duration_minutes * 60;
-    const startedTimestamp = quizInfo.started_at || localStorage.getItem("quizStartedAt") || new Date().toISOString();
-    localStorage.setItem("quizStartedAt", startedTimestamp);
-
-    const startedAt = new Date(startedTimestamp);
+    if (!quizInfo || loading || loadError || isFinished) return;
 
     const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 1000);
-      const remain = duration - elapsed;
+      const remain = remainingSeconds(clockRef.current);
 
       if (remain <= 0) {
-        clearInterval(interval);
         setTimeLeft(0);
-        submitQuiz("normal");
+        if (performance.now() >= retryAfterRef.current) submitQuiz("timeout");
         return;
       }
 
@@ -282,27 +300,33 @@ export default function Quiz() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [quizInfo, submitQuiz, isFinished]);
+  }, [quizInfo, submitQuiz, isFinished, loading, loadError]);
 
   useEffect(() => {
-    if (isFinished) return;
+    if (isFinished || loading || loadError) return;
     const interval = setInterval(sendHeartbeat, 15000);
-    return () => clearInterval(interval);
-  }, [isFinished, sendHeartbeat]);
+    const resync = () => { if (!document.hidden) void sendHeartbeat(); };
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("pageshow", resync);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("pageshow", resync);
+    };
+  }, [isFinished, loading, loadError, sendHeartbeat]);
 
   useEffect(() => {
-    if (isFinished) return;
-    const tabId = crypto.randomUUID();
-    const channel = new BroadcastChannel("quiz_channel");
+    if (isFinished || loading || loadError || typeof BroadcastChannel === "undefined" || !attemptId) return;
+    const tabId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    const channel = new BroadcastChannel(`quiz_channel_${attemptId}`);
 
     channel.onmessage = async (event) => {
-      if ((event.data.type === "TAB_OPENED" || event.data.type === "TAB_EXISTS") && event.data.tabId !== tabId) {
+      if ((event.data?.type === "TAB_OPENED" || event.data?.type === "TAB_EXISTS") && event.data.tabId !== tabId) {
         if (event.data.type === "TAB_OPENED") {
           channel.postMessage({ type: "TAB_EXISTS", tabId });
         }
-        setMessageType("error");
         setMessage("Terdeteksi lebih dari satu tab quiz terbuka.");
-        await submitQuiz("cheated");
+        // Duplicate tabs are not proof of cheating; warn without destroying an attempt.
       }
     };
 
@@ -312,11 +336,11 @@ export default function Quiz() {
     });
 
     return () => channel.close();
-  }, [submitQuiz, isFinished]);
+  }, [isFinished, loading, loadError, attemptId]);
 
   const handleExitToHome = () => {
-    localStorage.clear();
-    sessionStorage.clear();
+    ["accessToken", "quizId", "attemptId", "quizStartedAt", "savedAnswers", "pendingAnswers"].forEach((key) => localStorage.removeItem(key));
+    sessionStorage.removeItem("quizAutoSubmitted");
     navigate("/", { replace: true });
   };
 
@@ -349,6 +373,14 @@ export default function Quiz() {
     );
   }
 
+  if (loadError && !isFinished) {
+    return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <p role="alert">{message}</p>
+      <button type="button" onClick={() => window.location.reload()}>Coba Lagi</button>
+      <button type="button" onClick={() => navigate("/")}>Kembali ke Login</button>
+    </div>;
+  }
+
   if (isFinished) {
     const isCheated = finishType === "cheated";
 
@@ -367,7 +399,7 @@ export default function Quiz() {
             </h2>
             <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed opacity-95">
               {isCheated
-                ? "Sistem mendeteksi adanya tindakan pelanggaran integritas (Membuka DevTools / Keluar layar penuh / Membuka tab ganda). Seluruh lembar pengerjaan Anda telah dibekukan dan otomatis dikirimkan ke server."
+                ? "Sesi ujian ditutup sesuai aturan kuis. Jawaban yang tersimpan di server telah diarsipkan. Hubungi panitia jika Anda mengalami kendala perangkat."
                 : "Seluruh jawaban Anda telah berhasil diarsipkan dengan aman. Terima kasih atas partisipasi Anda dalam kompetisi Tax Quiz 2026."
               }
             </p>
@@ -459,6 +491,7 @@ export default function Quiz() {
                             type="radio"
                             name="quiz_option"
                             checked={isSelected}
+                            disabled={submitting || timeLeft <= 0}
                             onChange={() => saveAnswer(questions[currentQuestion].id, option.id, true)}
                             className="w-4 h-4 text-indigo-500 focus:ring-indigo-500/20 accent-indigo-500 mt-0.5 cursor-pointer"
                           />
@@ -469,6 +502,8 @@ export default function Quiz() {
                   </div>
                 ) : (
                   <textarea
+                    aria-label="Jawaban"
+                    disabled={submitting || timeLeft <= 0}
                     placeholder="Ketikkan jawaban Anda secara singkat di sini..."
                     value={savedAnswers[questions[currentQuestion].id] || ""}
                     onChange={(e) => saveAnswer(questions[currentQuestion].id, e.target.value, false)}

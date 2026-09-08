@@ -3,6 +3,7 @@ import express from "express";
 import { supabase } from "../lib/supabase.js";
 
 import { verifyAdmin } from "../middleware/auth.js";
+import { validateQuestion } from "../utils/questionValidation.js";
 
 const router = express.Router();
 
@@ -13,6 +14,8 @@ router.put(
 
   async (req, res) => {
     try {
+      const validationError = validateQuestion(req.body);
+      if (validationError) return res.status(400).json({ success: false, message: validationError });
       const id = req.params.id;
 
       const {
@@ -29,7 +32,7 @@ router.put(
         short_answer,
       } = req.body;
 
-      await supabase
+      const { error: questionError } = await supabase
 
         .from("questions")
 
@@ -48,8 +51,9 @@ router.put(
 
           id,
         );
+      if (questionError) throw questionError;
 
-      await supabase
+      const { error: deleteError } = await supabase
 
         .from("question_options")
 
@@ -60,9 +64,10 @@ router.put(
 
           id,
         );
+      if (deleteError) throw deleteError;
 
       if (question_type === "multiple_choice") {
-        await supabase
+        const { error: optionsError } = await supabase
 
           .from("question_options")
 
@@ -77,6 +82,7 @@ router.put(
               order_number: index + 1,
             })),
           );
+        if (optionsError) throw optionsError;
       }
 
       res.json({

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, FilePlus2, AlertCircle, CheckCircle2, Clock, Calendar } from "lucide-react";
 import api from "../../utils/api";
@@ -28,15 +28,6 @@ export default function CreateQuiz() {
     ? new Date(startDate.getTime() + form.duration_minutes * 60 * 1000)
     : null;
 
-  // Sync state form setiap kali startDate atau duration berubah
-  useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      start_time: startDate ? startDate.toISOString() : "",
-      end_time: calculatedEndDate ? calculatedEndDate.toISOString() : "",
-    }));
-  }, [startDate, calculatedEndDate]);
-
  async function handleSubmit(e) {
   e.preventDefault();
   setMessage("");
@@ -65,7 +56,11 @@ export default function CreateQuiz() {
     setLoading(true);
 
     // 2. Request ke Backend
-    const res = await api.post("/admin/create-quiz", form, {
+    const res = await api.post("/admin/create-quiz", {
+      ...form,
+      start_time: startDate.toISOString(),
+      end_time: calculatedEndDate.toISOString(),
+    }, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

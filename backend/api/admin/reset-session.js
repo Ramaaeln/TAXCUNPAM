@@ -48,6 +48,9 @@ router.post("/", verifyAdmin, async (req, res) => {
     if (customRemainingMinutes !== undefined && customRemainingMinutes !== null && customRemainingMinutes !== "") {
       const remainingMins = Number(customRemainingMinutes);
       const quizDuration = attempt.quizzes?.duration_minutes || 60;
+      if (!Number.isFinite(remainingMins) || remainingMins <= 0 || remainingMins > quizDuration) {
+        return res.status(400).json({ success: false, message: "Sisa waktu harus lebih dari 0 dan tidak melebihi durasi kuis" });
+      }
 
       // Hitung berapa ms yang sudah "seolah-olah" terpakai
       const elapsedMs = Math.max(0, (quizDuration - remainingMins) * 60 * 1000);

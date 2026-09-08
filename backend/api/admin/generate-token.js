@@ -41,7 +41,8 @@ router.post(
       } = req.body;
 
       // VALIDATION
-      if (!quiz_id || !count) {
+      if (!quiz_id || !Number.isInteger(Number(count)) || Number(count) < 1 || Number(count) > 500 ||
+          !Number.isFinite(Number(expires_in_minutes)) || Number(expires_in_minutes) <= 0 || Number(expires_in_minutes) > 525600) {
 
         return res.status(400).json({
           success: false,

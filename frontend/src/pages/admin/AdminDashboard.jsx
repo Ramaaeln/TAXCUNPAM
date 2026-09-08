@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -29,20 +29,7 @@ export default function AdminDashboard() {
     activeQuiz: 0,
   });
 
-  useEffect(() => {
-    const token = localStorage.getItem("adminToken");
-
-    if (!token) {
-      navigate("/utcbt-internal");
-      return;
-    }
-
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchStats() {
+  const fetchStats = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await api.get("/admin/dashboard-stats", {
@@ -56,10 +43,23 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [navigate]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken");
+
+    if (!token) {
+      navigate("/utcbt-internal");
+      return;
+    }
+
+    const initial = setTimeout(fetchStats, 0);
+    const interval = setInterval(fetchStats, 5000);
+    return () => { clearInterval(interval); clearTimeout(initial); };
+  }, [fetchStats, navigate]);
 
   function handleLogout() {
-    localStorage.clear();
+    localStorage.removeItem("adminToken");
     navigate("/utcbt-internal");
   }
 

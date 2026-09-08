@@ -13,7 +13,7 @@ router.delete(
 
   async (req, res) => {
     try {
-      await supabase
+      const { error } = await supabase
 
         .from("questions")
 
@@ -26,6 +26,7 @@ router.delete(
 
           req.params.id,
         );
+      if (error) throw error;
 
       res.json({
         success: true,

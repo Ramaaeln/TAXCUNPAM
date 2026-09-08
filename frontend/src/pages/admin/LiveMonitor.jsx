@@ -65,7 +65,7 @@ export default function LiveMonitor() {
 
   useEffect(() => {
     isMounted.current = true;
-    fetchMonitor();
+    const initial = setTimeout(() => fetchMonitor(), 0);
 
     // Auto polling setiap 5 detik HANYA jika tab browser sedang aktif
     const interval = setInterval(() => {
@@ -77,6 +77,7 @@ export default function LiveMonitor() {
     return () => {
       isMounted.current = false;
       clearInterval(interval);
+      clearTimeout(initial);
     };
   }, [fetchMonitor]);
 

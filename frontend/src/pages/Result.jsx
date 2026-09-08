@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle, LogOut, CheckCircle } from "lucide-react";
 import logo from "../assets/MASCOT.png";
@@ -11,9 +11,9 @@ export default function Result() {
 
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
-  const autoSubmitted = sessionStorage.getItem("quizAutoSubmitted");
+  const autoSubmitted = ["auto_submitted", "disqualified"].includes(result?.status);
 
-  async function fetchResult() {
+  const fetchResult = useCallback(async () => {
     try {
       const token = localStorage.getItem("accessToken");
 
@@ -34,11 +34,12 @@ export default function Result() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [navigate]);
 
   useEffect(() => {
-    fetchResult();
-  }, []);
+    const timer = setTimeout(fetchResult, 0);
+    return () => clearTimeout(timer);
+  }, [fetchResult]);
 
   useEffect(() => {
     if (autoSubmitted) {

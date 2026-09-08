@@ -142,7 +142,7 @@ export default function ReviewAnswers() {
                 const q = ans.questions || {};
                 const qOptions = q.question_options || [];
 
-                let isCorrect = false;
+                let isCorrect;
                 if (q.question_type === "multiple_choice") {
                   const selectedOpt = qOptions.find((o) => o.id === ans.selected_option_id);
                   isCorrect = Boolean(selectedOpt?.is_correct);

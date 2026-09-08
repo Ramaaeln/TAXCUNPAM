@@ -3,6 +3,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { supabase } from "../lib/supabase.js";
 import { hashToken } from "../utils/hash.js";
+import { finalizeAttempt } from "../utils/finalizeAttempt.js";
 
 const router = express.Router();
 
@@ -14,7 +15,9 @@ router.post("/", async (req, res) => {
     // ==========================================
     // VALIDATION
     // ==========================================
-    if (!token || !rawParticipantName) {
+    if (typeof token !== "string" || !token.trim() || token.length > 128 ||
+        typeof rawParticipantName !== "string" || !rawParticipantName.trim() || rawParticipantName.length > 200 ||
+        (participantEmail != null && (typeof participantEmail !== "string" || participantEmail.length > 254))) {
       return res.status(400).json({
         success: false,
         message: "Token and participant name are required",
@@ -49,7 +52,7 @@ router.post("/", async (req, res) => {
     // TOKEN NOT FOUND
     if (!quizToken) {
       await supabase.from("token_attempt_logs").insert({
-        token_input: cleanToken,
+        token_input: `sha256:${tokenHash}`,
         ip_address: req.ip,
         user_agent: req.headers["user-agent"],
         success: false,
@@ -75,12 +78,14 @@ router.post("/", async (req, res) => {
     // CHECK EXISTING ATTEMPT (RECOVERY & COMPLETED CHECK)
     // ==========================================
     // Cek apakah ada attempt aktif (in_progress) milik token ini yang siap dipulihkan
-    const { data: activeAttempt } = await supabase
+    const { data: activeAttempt, error: activeAttemptError } = await supabase
       .from("quiz_attempts")
       .select("*, quizzes(duration_minutes)")
       .eq("token_id", quizToken.id)
       .eq("status", "in_progress")
       .maybeSingle();
+
+    if (activeAttemptError) throw activeAttemptError;
 
     let targetAttemptId = null;
     let actualStartedAt = null;
@@ -88,20 +93,14 @@ router.post("/", async (req, res) => {
     if (activeAttempt) {
       // Cek apakah waktu attempt aktif ini sebenarnya sudah habis di server
       const startedAt = new Date(activeAttempt.started_at);
-      const durationMs = (activeAttempt.quizzes?.duration_minutes || 60) * 60 * 1000;
-      const gracePeriodMs = 30 * 1000;
+      const durationMs = Number(activeAttempt.quizzes?.duration_minutes) * 60 * 1000;
+      if (!Number.isFinite(durationMs) || durationMs <= 0 || !Number.isFinite(startedAt.getTime())) throw new Error("Invalid quiz timer");
+      const gracePeriodMs = 15 * 1000;
       const endTime = new Date(startedAt.getTime() + durationMs + gracePeriodMs);
 
       if (new Date() > endTime) {
         // Tandai attempt sebagai timeout di database
-        await supabase
-          .from("quiz_attempts")
-          .update({
-            status: "timeout",
-            submitted_at: new Date().toISOString(),
-            auto_submitted: true,
-          })
-          .eq("id", activeAttempt.id);
+        await finalizeAttempt(activeAttempt, "timeout");
 
         return res.status(401).json({
           success: false,
@@ -118,7 +117,7 @@ router.post("/", async (req, res) => {
       actualStartedAt = activeAttempt.started_at;
 
       // Nonaktifkan semua sesi lama di participant_sessions agar tidak bentrok
-      await supabase
+      const { error: expireError } = await supabase
         .from("participant_sessions")
         .update({
           is_active: false,
@@ -126,6 +125,7 @@ router.post("/", async (req, res) => {
         })
         .eq("attempt_id", targetAttemptId)
         .eq("is_active", true);
+      if (expireError) throw expireError;
 
     } else {
       // ------------------------------------------
@@ -226,7 +226,7 @@ router.post("/", async (req, res) => {
 
     // LOG SUCCESSFUL ATTEMPT
     await supabase.from("token_attempt_logs").insert({
-      token_input: cleanToken,
+      token_input: `sha256:${tokenHash}`,
       ip_address: req.ip,
       user_agent: req.headers["user-agent"],
       success: true,
@@ -244,7 +244,7 @@ router.post("/", async (req, res) => {
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: "2h",
+        expiresIn: "25h",
       }
     );
 

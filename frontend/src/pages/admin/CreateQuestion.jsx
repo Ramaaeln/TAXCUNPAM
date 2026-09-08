@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "../../utils/api";
 import { AlertCircle, CheckCircle2, Trash2, FileQuestion, ArrowLeft, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -27,19 +27,7 @@ export default function CreateQuestion() {
     short_answer: "",
   });
 
-  useEffect(() => {
-    fetchQuizzes();
-  }, []);
-
-  useEffect(() => {
-    if (!form.quiz_id) {
-      setQuestions([]);
-      return;
-    }
-    fetchQuestions();
-  }, [form.quiz_id]);
-
-  async function fetchQuizzes() {
+  const fetchQuizzes = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await api.get("/admin/quizzes", {
@@ -52,9 +40,9 @@ export default function CreateQuestion() {
     } finally {
       setLoadingQuizzes(false);
     }
-  }
+  }, []);
 
-  async function fetchQuestions() {
+  const fetchQuestions = useCallback(async () => {
     try {
       setLoadingQuestions(true);
       const token = localStorage.getItem("adminToken");
@@ -75,7 +63,21 @@ export default function CreateQuestion() {
     } finally {
       setLoadingQuestions(false);
     }
-  }
+  }, [form.quiz_id]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchQuizzes, 0);
+    return () => clearTimeout(timer);
+  }, [fetchQuizzes]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!form.quiz_id) setQuestions([]);
+      else void fetchQuestions();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [form.quiz_id, fetchQuestions]);
+
 
   function handleEdit(question) {
     // FIX: Penanganan aman saat mengedit soal Isian Singkat vs Pilihan Ganda

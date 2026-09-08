@@ -10,6 +10,8 @@ router.get("/", verifyAdmin, async (req, res) => {
       .from("quiz_attempts")
       .select(`
         id,
+        token_id,
+        quiz_id,
         participant_name,
         score,
         status,
@@ -25,7 +27,8 @@ router.get("/", verifyAdmin, async (req, res) => {
         submitted_at,
         quizzes (
           id,
-          title
+          title,
+          duration_minutes
         )
       `)
       .order("started_at", { ascending: false });

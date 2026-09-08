@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -11,8 +11,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportExcel as downloadExcel, exportCSV as downloadCSV } from "../../utils/exportData";
 
 import api from "../../utils/api";
 import useDocumentTitle from "../../hooks/useDocumentTitle";
@@ -26,10 +25,6 @@ export default function Participants() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    fetchParticipants();
-  }, []);
-
   // Helper untuk mengekstrak judul kuis dari objek maupun array relasi
   function getQuizTitle(participant) {
     if (Array.isArray(participant?.quizzes)) {
@@ -38,7 +33,7 @@ export default function Participants() {
     return participant?.quizzes?.title || "N/A";
   }
 
-  async function fetchParticipants() {
+  const fetchParticipants = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       if (!token) {
@@ -59,10 +54,16 @@ export default function Participants() {
           err.response?.data?.message || "Failed to load participants"
         );
       }
-    } fontally: {
+    } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchParticipants, 0);
+    return () => clearTimeout(timer);
+  }, [fetchParticipants]);
+
 
   const totalParticipants = participants.length;
   const submitted = participants.filter((p) => p.status === "submitted").length;
@@ -76,7 +77,7 @@ export default function Participants() {
     return nameMatch || quizMatch;
   });
 
-  function exportExcel() {
+  async function exportExcel() {
     if (!filteredParticipants.length) {
       alert("Tidak ada data peserta untuk diekspor.");
       return;
@@ -93,20 +94,8 @@ export default function Participants() {
       TabSwitch: p.tab_switch_violations || 0,
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Participants");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-
-    const file = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    saveAs(file, "participants.xlsx");
+    try { await downloadExcel(data, "Participants", "participants.xlsx"); }
+    catch { setMessage("Gagal mengekspor data. Silakan coba lagi."); }
   }
 
   function exportCSV() {
@@ -123,11 +112,7 @@ export default function Participants() {
       Violations: p.violation_count || 0,
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(worksheet);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-
-    saveAs(blob, "participants.csv");
+    downloadCSV(data, "participants.csv");
   }
 
   if (loading) {

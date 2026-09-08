@@ -17,14 +17,24 @@ export async function verifyParticipant(req, res, next) {
 
     // Ambil sessionId baik dalam format camelCase maupun snake_case
     const sessionId = decoded.sessionId || decoded.session_id;
+    const attemptId = decoded.attemptId || decoded.attempt_id;
+    const quizId = decoded.quizId || decoded.quiz_id;
+    if (decoded.role !== "participant" || !sessionId || !attemptId || !quizId) {
+      return res.status(401).json({ success: false, message: "Invalid participant token" });
+    }
 
     // Verifikasi keaktifan session di database
     if (sessionId) {
-      const { data: session } = await supabase
+      const { data: session, error: sessionError } = await supabase
         .from("participant_sessions")
-        .select("is_active")
+        .select("is_active, attempt_id")
         .eq("id", sessionId)
         .maybeSingle();
+
+      if (sessionError) return res.status(503).json({ success: false, message: "Session verification unavailable. Please retry." });
+      if (!session || session.attempt_id !== attemptId) {
+        return res.status(401).json({ success: false, message: "Invalid participant session" });
+      }
 
       // Pengecualian khusus: Izinkan akses ke endpoint /quiz/result meskipun session sudah non-aktif
       const isResultEndpoint = req.originalUrl.includes("/quiz/result");
@@ -41,8 +51,8 @@ export async function verifyParticipant(req, res, next) {
     req.user = {
       ...decoded,
       sessionId: sessionId,
-      attemptId: decoded.attemptId || decoded.attempt_id || sessionId,
-      quizId: decoded.quizId || decoded.quiz_id,
+      attemptId,
+      quizId,
     };
 
     next();

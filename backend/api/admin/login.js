@@ -12,7 +12,7 @@ router.post("/", async (req, res) => {
     // ==========================================
     // VALIDATION
     // ==========================================
-    if (!email || !password) {
+    if (typeof email !== "string" || !email.trim() || email.length > 254 || typeof password !== "string" || !password || password.length > 1024) {
       return res.status(400).json({
         success: false,
         message: "Email and password required",

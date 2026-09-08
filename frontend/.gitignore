@@ -9,6 +9,10 @@ lerna-debug.log*
 .env
 
 node_modules
+test-results
+playwright-report
+audit-report.json
+lint-report.json
 dist
 dist-ssr
 *.local

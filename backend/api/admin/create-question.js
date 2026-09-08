@@ -2,6 +2,7 @@ import express from "express";
 import { supabase } from "../lib/supabase.js";
 
 import { verifyAdmin } from "../middleware/auth.js";
+import { validateQuestion } from "../utils/questionValidation.js";
 
 const router = express.Router();
 
@@ -12,6 +13,8 @@ router.post(
 
   async (req, res) => {
     try {
+      const validationError = validateQuestion(req.body);
+      if (validationError) return res.status(400).json({ success: false, message: validationError });
       const {
         quiz_id,
         question_text,
@@ -77,11 +80,15 @@ router.post(
           is_correct: index === correct_option,
         }));
 
-        await supabase
+        const { error: optionsError } = await supabase
 
           .from("question_options")
 
           .insert(payload);
+        if (optionsError) {
+          await supabase.from("questions").update({ deleted_at: new Date().toISOString() }).eq("id", question.id);
+          throw optionsError;
+        }
       }
 
       res.json({

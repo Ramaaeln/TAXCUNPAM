@@ -1,20 +1,21 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import Login from "./pages/Login";
-import Quiz from "./pages/Quiz";
-import AdminLogin from "./pages/admin/AdminLogin";
-import CreateQuiz from "./pages/admin/CreateQuiz";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import CreateQuestion from "./pages/admin/CreateQuestion";
-import GenerateToken from "./pages/admin/GenerateToken";
-import LiveMonitor from "./pages/admin/LiveMonitor";
+const Login = lazy(() => import("./pages/Login"));
+const Quiz = lazy(() => import("./pages/Quiz"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const CreateQuiz = lazy(() => import("./pages/admin/CreateQuiz"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const CreateQuestion = lazy(() => import("./pages/admin/CreateQuestion"));
+const GenerateToken = lazy(() => import("./pages/admin/GenerateToken"));
+const LiveMonitor = lazy(() => import("./pages/admin/LiveMonitor"));
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import GuestAdminRoute from "./components/GuestAdminRoute";
-import LeaderboardAdmin from "./pages/admin/LeaderboardAdmin";
-import Participants from "./pages/admin/Participants";
-import NotFound from "./pages/NotFound";
-import ReviewAnswers from "./pages/admin/ReviewAnswers";
-import RecoveryAdmin from "./pages/admin/RecoveryAdmin";
+const LeaderboardAdmin = lazy(() => import("./pages/admin/LeaderboardAdmin"));
+const Participants = lazy(() => import("./pages/admin/Participants"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const ReviewAnswers = lazy(() => import("./pages/admin/ReviewAnswers"));
+const RecoveryAdmin = lazy(() => import("./pages/admin/RecoveryAdmin"));
 import ScrollToTop from "./components/ScrollTop"; // 1. Import komponen ScrollToTop
 
 function ProtectedQuizRoute({ children }) {
@@ -35,6 +36,7 @@ export default function App() {
       {/* 2. Diletakkan di sini agar melayang di atas semua halaman */}
       <ScrollToTop />
 
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center" role="status">Memuat halaman...</div>}>
       <Routes>
         <Route path="/" element={<Login />} />
 
@@ -133,6 +135,7 @@ export default function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

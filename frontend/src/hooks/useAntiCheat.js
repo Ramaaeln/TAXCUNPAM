@@ -19,6 +19,8 @@ export default function useAntiCheat(
     if (!token || disabled) return;
 
     let active = true;
+    fullscreenStarted.current = !!document.fullscreenElement;
+    let visibilityTimeout;
 
     async function sendViolation(
       violationType,
@@ -69,11 +71,14 @@ export default function useAntiCheat(
     }
 
     function handleVisibility() {
+      clearTimeout(visibilityTimeout);
       if (document.hidden) {
-        sendViolation(
+        visibilityTimeout = setTimeout(() => {
+          if (document.hidden) sendViolation(
           "tab_switch",
           "User switched tab or minimized browser"
         );
+        }, 1500);
       }
     }
 
@@ -84,6 +89,7 @@ export default function useAntiCheat(
       }
 
       if (fullscreenStarted.current) {
+        fullscreenStarted.current = false;
         sendViolation(
           "fullscreen_exit",
           "Exited fullscreen mode"
@@ -103,6 +109,7 @@ export default function useAntiCheat(
 
     return () => {
       active = false;
+      clearTimeout(visibilityTimeout);
 
       document.removeEventListener(
         "visibilitychange",

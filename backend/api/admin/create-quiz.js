@@ -35,8 +35,9 @@ router.post(
       // ==========================================
 
       if (
-        !title ||
-        !duration_minutes
+        typeof title !== "string" || !title.trim() || title.length > 300 ||
+        !Number.isFinite(Number(duration_minutes)) || Number(duration_minutes) <= 0 || Number(duration_minutes) > 1440 ||
+        !Number.isFinite(Date.parse(start_time)) || !Number.isFinite(Date.parse(end_time)) || Date.parse(end_time) <= Date.parse(start_time)
       ) {
 
         return res.status(400).json({

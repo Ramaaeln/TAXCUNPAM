@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportExcel as downloadExcel, exportCSV as downloadCSV } from "../../utils/exportData";
 import {
   ArrowLeft,
   Trophy,
@@ -26,19 +25,7 @@ export default function Leaderboard() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("error");
 
-  useEffect(() => {
-    fetchQuizzes();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedQuiz) {
-      setLeaderboard([]);
-      return;
-    }
-    fetchLeaderboard(selectedQuiz);
-  }, [selectedQuiz]);
-
-  async function fetchQuizzes() {
+  const fetchQuizzes = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       if (!token) {
@@ -57,9 +44,9 @@ export default function Leaderboard() {
       setMessageType("error");
       setMessage(err.response?.data?.message || "Gagal memuat daftar kuis");
     }
-  }
+  }, []);
 
-  async function fetchLeaderboard(quizId) {
+  const fetchLeaderboard = useCallback(async (quizId) => {
     try {
       setLoading(true);
       setMessage("");
@@ -71,9 +58,23 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   // Analytics Metrics dengan sanitasi Number()
+  useEffect(() => {
+    const timer = setTimeout(fetchQuizzes, 0);
+    return () => clearTimeout(timer);
+  }, [fetchQuizzes]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!selectedQuiz) setLeaderboard([]);
+      else void fetchLeaderboard(selectedQuiz);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [selectedQuiz, fetchLeaderboard]);
+
+
   const totalParticipants = leaderboard.length;
   const highestScore = leaderboard.length > 0 ? Number(leaderboard[0].score || 0) : 0;
   const averageScore =
@@ -93,7 +94,7 @@ export default function Leaderboard() {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
-  function exportExcel() {
+  async function exportExcel() {
     if (!leaderboard.length) return;
     const data = leaderboard.map((item) => ({
       Rank: item.rank,
@@ -103,19 +104,8 @@ export default function Leaderboard() {
       "Duration (Seconds)": item.duration_seconds || 0,
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Leaderboard");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-
-    const file = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    saveAs(file, "leaderboard.xlsx");
+    try { await downloadExcel(data, "Leaderboard", "leaderboard.xlsx"); }
+    catch { setMessage("Gagal mengekspor data. Silakan coba lagi."); }
   }
 
   function exportCSV() {
@@ -128,10 +118,7 @@ export default function Leaderboard() {
       "Duration (Seconds)": item.duration_seconds || 0,
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(worksheet);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, "leaderboard.csv");
+    downloadCSV(data, "leaderboard.csv");
   }
 
   return (

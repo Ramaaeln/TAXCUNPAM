@@ -33,6 +33,14 @@
 
 body{
   font-family: var(--font-poppins);
-  background-color: var(--color-background);
-  color: var(--color-text-primary);
+  background-color: var(--background);
+  color: var(--text-primary);
+  min-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+input, textarea, select { min-width: 0; }
+@media (pointer: coarse) {
+  input:not([type="radio"]):not([type="checkbox"]), textarea, select { font-size: 16px; }
+  button { min-height: 44px; }
 }

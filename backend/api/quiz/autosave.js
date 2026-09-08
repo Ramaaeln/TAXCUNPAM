@@ -28,12 +28,29 @@ router.post(
         });
       }
 
+      const { data: question, error: questionError } = await supabase
+        .from("questions").select("id, question_type")
+        .eq("id", questionId).eq("quiz_id", req.attempt.quiz_id)
+        .is("deleted_at", null).maybeSingle();
+      if (questionError) throw questionError;
+      if (!question) return res.status(400).json({ success: false, message: "Question does not belong to this quiz" });
+      if (question.question_type === "multiple_choice" && selectedOptionId) {
+        const { data: option, error: optionError } = await supabase
+          .from("question_options").select("id").eq("id", selectedOptionId)
+          .eq("question_id", questionId).maybeSingle();
+        if (optionError) throw optionError;
+        if (!option) return res.status(400).json({ success: false, message: "Invalid option for this question" });
+      }
+      if (textAnswer != null && (typeof textAnswer !== "string" || textAnswer.length > 10000)) {
+        return res.status(400).json({ success: false, message: "Invalid text answer" });
+      }
+
       // 1. Sanitasi input
-      let cleanSelectedOption = selectedOptionId || null;
+      const cleanSelectedOption = question.question_type === "multiple_choice" ? selectedOptionId || null : null;
       let cleanTextAnswer = null;
 
       if (
-        textAnswer !== undefined &&
+        question.question_type === "short_answer" && textAnswer !== undefined &&
         textAnswer !== null &&
         String(textAnswer).trim() !== ""
       ) {
@@ -56,7 +73,7 @@ router.post(
         console.error("Supabase autosave error:", error);
         return res.status(500).json({
           success: false,
-          message: "Failed to save answer: " + error.message,
+          message: "Failed to save answer",
         });
       }
 

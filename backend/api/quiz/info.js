@@ -49,12 +49,13 @@ router.get("/:quizId", verifyParticipant, async (req, res) => {
     let attemptStatus = null;
 
     if (attemptId) {
-      const { data: attemptData } = await supabase
+      const { data: attemptData, error: attemptError } = await supabase
         .from("quiz_attempts")
         .select("started_at, status")
         .eq("id", attemptId)
         .maybeSingle();
 
+      if (attemptError || !attemptData) throw new Error("Failed loading quiz timer");
       if (attemptData) {
         startedAt = attemptData.started_at;
         attemptStatus = attemptData.status;
@@ -67,6 +68,7 @@ router.get("/:quizId", verifyParticipant, async (req, res) => {
         ...quizData,
         started_at: startedAt,
         attempt_status: attemptStatus,
+        server_now: new Date().toISOString(),
       },
     });
   } catch (error) {

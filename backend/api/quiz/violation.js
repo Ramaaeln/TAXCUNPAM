@@ -1,6 +1,7 @@
 import express from "express";
 import { supabase } from "../lib/supabase.js";
 import { verifyParticipant } from "../middleware/auth.js";
+import { finalizeAttempt } from "../utils/finalizeAttempt.js";
 
 const router = express.Router();
 
@@ -35,6 +36,11 @@ router.post("/", verifyParticipant, async (req, res) => {
         success: false,
         message: "Invalid violation type",
       });
+    }
+
+    // Geometry/focus cannot reliably prove cheating, including on old clients.
+    if (["devtools", "blur"].includes(violationType)) {
+      return res.json({ success: true, autoSubmitted: false, disqualified: false });
     }
 
     // =====================================================
@@ -200,20 +206,22 @@ router.post("/", verifyParticipant, async (req, res) => {
     // =====================================================
     // 7. Kalau kena batas, tandai disqualified
     // =====================================================
-    if (shouldAutoSubmit) {
-      updateData.status = "disqualified";
-      updateData.auto_submitted = true;
-      updateData.submitted_at = new Date().toISOString();
-      updateData.disqualified_reason = violationType;
-    }
+    const enabled = violationType === "tab_switch"
+      ? settings?.auto_submit_on_tab_switch !== false
+      : settings?.auto_submit_on_fullscreen_exit !== false;
+    shouldAutoSubmit = shouldAutoSubmit && enabled;
 
     // =====================================================
     // 8. Update attempt
     // =====================================================
-    const { error: updateError } = await supabase
+    const result = shouldAutoSubmit
+      ? { data: await finalizeAttempt(attempt, "disqualified", { ...updateData, disqualified_reason: violationType }) }
+      : await supabase
       .from("quiz_attempts")
       .update(updateData)
-      .eq("id", attemptId);
+      .eq("id", attemptId).eq("status", "in_progress");
+
+    const updateError = result.error;
 
     if (updateError) {
       console.error("Failed updating attempt:", updateError);

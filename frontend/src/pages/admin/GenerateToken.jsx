@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/api";
-import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import {
   ArrowLeft,
@@ -31,11 +30,7 @@ export default function GenerateToken() {
     max_usage: 1, // Parameter max usage untuk mendukung token darurat/recovery
   });
 
-  useEffect(() => {
-    fetchQuizzes();
-  }, []);
-
-  async function fetchQuizzes() {
+  const fetchQuizzes = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await api.get("/admin/quizzes", {
@@ -48,7 +43,13 @@ export default function GenerateToken() {
       setMessageType("error");
       setMessage("Gagal memuat daftar kuis");
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchQuizzes, 0);
+    return () => clearTimeout(timer);
+  }, [fetchQuizzes]);
+
 
   async function handleGenerate(e) {
     e.preventDefault();
@@ -80,10 +81,15 @@ export default function GenerateToken() {
     }
   }
 
-  function copyToken(token) {
-    navigator.clipboard.writeText(token);
-    setMessageType("success");
-    setMessage("Token berhasil disalin ke clipboard");
+  async function copyToken(token) {
+    try {
+      await navigator.clipboard.writeText(token);
+      setMessageType("success");
+      setMessage("Token berhasil disalin ke clipboard");
+    } catch {
+      setMessageType("error");
+      setMessage("Clipboard tidak tersedia. Salin token secara manual.");
+    }
   }
 
   async function copyAllTokens() {
@@ -122,6 +128,7 @@ export default function GenerateToken() {
 
   async function downloadExcel() {
     try {
+      const { default: ExcelJS } = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Tokens");
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { KeyRound, Users, ArrowRight, AlertCircle, RefreshCw } from "lucide-react";
 
@@ -11,6 +11,7 @@ export default function Login() {
   useDocumentTitle("UTCBT 2026");
 
   const [loading, setLoading] = useState(false);
+  const loginInFlight = useRef(false);
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
   const [form, setForm] = useState({
@@ -20,6 +21,7 @@ export default function Login() {
 
   async function handleLogin(e) {
     e.preventDefault();
+    if (loginInFlight.current) return;
     setError("");
     setInfoMessage("");
 
@@ -30,15 +32,21 @@ export default function Login() {
 
     try {
       setLoading(true);
+      loginInFlight.current = true;
 
       // Bersihkan sesi lama sebelum menyimpan token baru
-      localStorage.clear();
-      sessionStorage.clear();
-
       const { data } = await api.post("/auth/token-login", {
         token: form.token.trim().toUpperCase(),
         participantName: form.participantName.trim(),
       });
+
+      if (!data.accessToken || !data.quizId || !data.attemptId) throw new Error("Invalid login response");
+      if (localStorage.getItem("attemptId") !== data.attemptId) {
+        localStorage.removeItem("savedAnswers");
+        localStorage.removeItem("pendingAnswers");
+      }
+      localStorage.removeItem("quizStartedAt");
+      sessionStorage.removeItem("quizAutoSubmitted");
 
       // Simpan kredensial utama
       localStorage.setItem("accessToken", data.accessToken);
@@ -53,9 +61,7 @@ export default function Login() {
       // Jika backend mendeteksi ini adalah sesi recovery
       if (data.isRecovery) {
         setInfoMessage("Sesi ujian ditemukan. Memulihkan lembar pengerjaan...");
-        setTimeout(() => {
-          navigate("/quiz");
-        }, 1000);
+        navigate("/quiz", { replace: true });
       } else {
         navigate("/quiz");
       }
@@ -66,6 +72,7 @@ export default function Login() {
       );
     } finally {
       setLoading(false);
+      loginInFlight.current = false;
     }
   }
 
@@ -117,7 +124,7 @@ export default function Login() {
 
           {/* TOKEN FIELD */}
           <div className="mb-5">
-            <label className="block mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+            <label htmlFor="quiz-token" className="block mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
               Token Akses Quiz
             </label>
             <div className="relative group">
@@ -126,6 +133,11 @@ export default function Login() {
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] transition-colors group-focus-within:text-indigo-400" 
               />
               <input
+                id="quiz-token"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={128}
                 type="text"
                 placeholder="Masukkan token dari panitia"
                 value={form.token}
@@ -138,7 +150,7 @@ export default function Login() {
 
           {/* TEAM FIELD */}
           <div className="mb-6">
-            <label className="block mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+            <label htmlFor="participant-name" className="block mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
               Nama Team / Peserta
             </label>
             <div className="relative group">
@@ -147,6 +159,8 @@ export default function Login() {
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] transition-colors group-focus-within:text-indigo-400" 
               />
               <input
+                id="participant-name"
+                maxLength={200}
                 type="text"
                 placeholder="Masukkan nama resmi tim Anda"
                 value={form.participantName}

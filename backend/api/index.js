@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import jwt from "jsonwebtoken";
 import compression from "compression";
 
-import { supabase } from "./lib/supabase.js";
+import { pathToFileURL } from "node:url";
 
 // Import Auth & Admin Routes
 import tokenLoginRoute from "./auth/token-login.js";
@@ -53,10 +54,12 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.some((o) => origin.startsWith(o.replace(/\/$/, "")))) {
+      if (!origin || allowedOrigins.some((o) => origin === o.replace(/\/$/, ""))) {
         callback(null, true);
       } else {
-        callback(null, true); 
+        const error = new Error("Origin not allowed");
+        error.status = 403;
+        callback(error);
       }
     },
     credentials: true,
@@ -66,12 +69,25 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 2000, 
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    try {
+      const token = req.headers.authorization?.replace(/^Bearer /, "");
+      const claims = jwt.verify(token, process.env.JWT_SECRET);
+      if (claims.role === "participant" && claims.sessionId) return `participant:${claims.sessionId}`;
+      if (claims.role === "admin" && claims.id) return `admin:${claims.id}`;
+    } catch { /* Unauthenticated traffic shares an IP-based limit. */ }
+    return ipKeyGenerator(req.ip);
+  },
   message: {
     success: false,
     message: "Terlalu banyak permintaan dari IP ini, silakan coba beberapa saat lagi.",
@@ -83,6 +99,7 @@ app.use(limiter);
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 15,
+  skipSuccessfulRequests: true,
   message: {
     success: false,
     message: "Terlalu banyak percobaan login, coba lagi dalam 10 menit.",
@@ -98,30 +115,6 @@ app.get("/", (req, res) => {
     success: true,
     message: "API Running",
   });
-});
-
-app.get("/test-db", async (req, res) => {
-  try {
-    const { data, error } = await supabase.from("quizzes").select("*");
-
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-
-    res.json({
-      success: true,
-      data,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
 });
 
 // AUTH ROUTES
@@ -163,9 +156,9 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error("GLOBAL ERROR:", err);
+  if (!err.status || err.status >= 500) console.error("GLOBAL ERROR:", err);
 
-  res.status(500).json({
+  res.status(err.status || 500).json({
     success: false,
     message:
       process.env.NODE_ENV === "production"
@@ -176,8 +169,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
 
 export default app;

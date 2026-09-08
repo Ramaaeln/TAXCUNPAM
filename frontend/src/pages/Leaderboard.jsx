@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Trophy,
@@ -25,7 +25,7 @@ export default function Leaderboard() {
 
   const [error, setError] = useState("");
 
-async function fetchLeaderboard() {
+const fetchLeaderboard = useCallback(async () => {
   try {
     const response = await api.get(
       `/leaderboard/${quizId}`
@@ -41,11 +41,14 @@ async function fetchLeaderboard() {
   } finally {
     setLoading(false);
   }
-}
+}, [quizId]);
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+    const timer = setTimeout(fetchLeaderboard, 0);
+    return () => clearTimeout(timer);
+  }, [fetchLeaderboard]);
+
+  if (error) return <p role="alert">{error}</p>;
 
   if (loading) {
   return (
