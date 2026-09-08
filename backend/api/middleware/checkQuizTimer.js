@@ -31,6 +31,11 @@ export async function checkQuizTimer(req, res, next) {
     }
 
     if (attempt.status !== "in_progress") {
+      if (req.originalUrl.includes("/submit")) {
+        req.attempt = attempt;
+        return next();
+      }
+
       return res.status(400).json({
         success: false,
         message: "Quiz already ended",

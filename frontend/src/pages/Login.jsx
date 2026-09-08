@@ -35,9 +35,8 @@ export default function Login() {
       localStorage.clear();
       sessionStorage.clear();
 
-      // PERBAIKAN 1: Gunakan endpoint /participant/login (bukan /auth/token-login)
       const { data } = await api.post("/auth/token-login", {
-        token: form.token.trim(),
+        token: form.token.trim().toUpperCase(),
         participantName: form.participantName.trim(),
       });
 

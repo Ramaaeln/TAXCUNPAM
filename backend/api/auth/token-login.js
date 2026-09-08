@@ -8,12 +8,13 @@ const router = express.Router();
 
 router.post("/", async (req, res) => {
   try {
-    const { token, participantName, participantEmail } = req.body;
+    const { token, participantName, participantEmail } = req.body || {};
+    const rawParticipantName = participantName || req.body?.participant_name;
 
     // ==========================================
     // VALIDATION
     // ==========================================
-    if (!token || !participantName) {
+    if (!token || !rawParticipantName) {
       return res.status(400).json({
         success: false,
         message: "Token and participant name are required",
@@ -21,10 +22,10 @@ router.post("/", async (req, res) => {
     }
 
     // ==========================================
-    // CLEAN INPUT
+    // CLEAN INPUT (Uppercased Token for consistency)
     // ==========================================
-    const cleanToken = token.trim();
-    const cleanName = participantName.trim();
+    const cleanToken = token.trim().toUpperCase();
+    const cleanName = rawParticipantName.trim();
     const tokenHash = hashToken(cleanToken);
 
     // ==========================================
@@ -71,14 +72,13 @@ router.post("/", async (req, res) => {
     }
 
     // ==========================================
-    // CHECK EXISTING ATTEMPT (RECOVERY CHECK)
+    // CHECK EXISTING ATTEMPT (RECOVERY & COMPLETED CHECK)
     // ==========================================
-    // Cek apakah ada attempt aktif (in_progress) milik peserta ini yang siap dipulihkan
+    // Cek apakah ada attempt aktif (in_progress) milik token ini yang siap dipulihkan
     const { data: activeAttempt } = await supabase
       .from("quiz_attempts")
-      .select("*")
-      .eq("quiz_id", quizToken.quiz_id)
-      .ilike("participant_name", cleanName) // Gunakan ilike agar case-insensitive
+      .select("*, quizzes(duration_minutes)")
+      .eq("token_id", quizToken.id)
       .eq("status", "in_progress")
       .maybeSingle();
 
@@ -86,6 +86,29 @@ router.post("/", async (req, res) => {
     let actualStartedAt = null;
 
     if (activeAttempt) {
+      // Cek apakah waktu attempt aktif ini sebenarnya sudah habis di server
+      const startedAt = new Date(activeAttempt.started_at);
+      const durationMs = (activeAttempt.quizzes?.duration_minutes || 60) * 60 * 1000;
+      const gracePeriodMs = 30 * 1000;
+      const endTime = new Date(startedAt.getTime() + durationMs + gracePeriodMs);
+
+      if (new Date() > endTime) {
+        // Tandai attempt sebagai timeout di database
+        await supabase
+          .from("quiz_attempts")
+          .update({
+            status: "timeout",
+            submitted_at: new Date().toISOString(),
+            auto_submitted: true,
+          })
+          .eq("id", activeAttempt.id);
+
+        return res.status(401).json({
+          success: false,
+          message: "Waktu pengerjaan kuis untuk token ini telah berakhir.",
+        });
+      }
+
       // ------------------------------------------
       // JALUR A: RECOVERY (Peserta Melanjutkan Ujian / Sesi Di-reset Admin)
       // ------------------------------------------
@@ -109,11 +132,30 @@ router.post("/", async (req, res) => {
       // JALUR B: ENTRY BARU (Peserta Pertama Kali Masuk)
       // ------------------------------------------
       
-      // Jika attempt baru, WAJIB cek apakah batas penggunaan token sudah habis
-      if (quizToken.usage_count >= quizToken.max_usage) {
+      // Jika attempt baru, WAJIB cek apakah token ini sudah pernah digunakan
+      const isUsed = quizToken.is_used;
+      const usageCount = quizToken.usage_count || 0;
+      const maxUsage = quizToken.max_usage || 1;
+
+      if (isUsed || usageCount >= maxUsage) {
+        // Cek apakah kuis dengan token ini sudah selesai
+        const { data: completedAttempt } = await supabase
+          .from("quiz_attempts")
+          .select("*")
+          .eq("token_id", quizToken.id)
+          .in("status", ["submitted", "auto_submitted", "timeout", "disqualified"])
+          .maybeSingle();
+
+        if (completedAttempt) {
+          return res.status(401).json({
+            success: false,
+            message: "Token ini sudah digunakan dan kuis telah selesai. Silakan gunakan token baru.",
+          });
+        }
+
         return res.status(401).json({
           success: false,
-          message: "Token already used",
+          message: "Token ini sudah pernah digunakan. Harap minta token baru kepada panitia.",
         });
       }
 
@@ -150,7 +192,7 @@ router.post("/", async (req, res) => {
       await supabase
         .from("quiz_tokens")
         .update({
-          usage_count: quizToken.usage_count + 1,
+          usage_count: usageCount + 1,
           is_used: true,
           used_by_attempt: targetAttemptId,
         })

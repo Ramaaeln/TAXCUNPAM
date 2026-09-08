@@ -16,7 +16,7 @@ export default function useDevtoolsDetect(
  useEffect(() => {
   if (!token) return;
 
-  const threshold = 350;
+  const threshold = 500;
   let interval = null;
 
   const triggerViolation = async () => {
@@ -69,7 +69,7 @@ export default function useDevtoolsDetect(
       detectCountRef.current += 1;
 
       if (
-        detectCountRef.current >= 4 &&
+        detectCountRef.current >= 8 &&
         !violationSentRef.current
       ) {
         await triggerViolation();

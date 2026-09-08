@@ -43,9 +43,31 @@ router.get("/:quizId", verifyParticipant, async (req, res) => {
       });
     }
 
+    // 3. Ambil data attempt peserta untuk sinkronisasi waktu started_at
+    const attemptId = req.user?.attemptId;
+    let startedAt = null;
+    let attemptStatus = null;
+
+    if (attemptId) {
+      const { data: attemptData } = await supabase
+        .from("quiz_attempts")
+        .select("started_at, status")
+        .eq("id", attemptId)
+        .maybeSingle();
+
+      if (attemptData) {
+        startedAt = attemptData.started_at;
+        attemptStatus = attemptData.status;
+      }
+    }
+
     return res.json({
       success: true,
-      quiz: quizData,
+      quiz: {
+        ...quizData,
+        started_at: startedAt,
+        attempt_status: attemptStatus,
+      },
     });
   } catch (error) {
     console.error("Quiz info endpoint error:", error);

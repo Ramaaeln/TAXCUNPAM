@@ -147,19 +147,28 @@ export default function Quiz() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.data.success && res.data.answers) {
-        const restored = {};
+      if (res.data.success) {
+        if (res.data.status && res.data.status !== "in_progress") {
+          const type = (res.data.status === "auto_submitted" || res.data.status === "disqualified") ? "cheated" : "normal";
+          setFinishType(type);
+          setIsFinished(true);
+          return;
+        }
 
-        res.data.answers.forEach((item) => {
-          if (item.selected_option_id) {
-            restored[item.question_id] = item.selected_option_id;
-          } else if (item.text_answer !== null && item.text_answer !== undefined) {
-            restored[item.question_id] = item.text_answer;
-          }
-        });
+        if (res.data.answers) {
+          const restored = {};
 
-        setSavedAnswers(restored);
-        localStorage.setItem("savedAnswers", JSON.stringify(restored));
+          res.data.answers.forEach((item) => {
+            if (item.selected_option_id) {
+              restored[item.question_id] = item.selected_option_id;
+            } else if (item.text_answer !== null && item.text_answer !== undefined) {
+              restored[item.question_id] = item.text_answer;
+            }
+          });
+
+          setSavedAnswers(restored);
+          localStorage.setItem("savedAnswers", JSON.stringify(restored));
+        }
       }
     } catch (err) {
       console.error("Gagal memulihkan jawaban dari database:", err);
@@ -287,7 +296,10 @@ export default function Quiz() {
     const channel = new BroadcastChannel("quiz_channel");
 
     channel.onmessage = async (event) => {
-      if (event.data.type === "TAB_OPENED" && event.data.tabId !== tabId) {
+      if ((event.data.type === "TAB_OPENED" || event.data.type === "TAB_EXISTS") && event.data.tabId !== tabId) {
+        if (event.data.type === "TAB_OPENED") {
+          channel.postMessage({ type: "TAB_EXISTS", tabId });
+        }
         setMessageType("error");
         setMessage("Terdeteksi lebih dari satu tab quiz terbuka.");
         await submitQuiz("cheated");

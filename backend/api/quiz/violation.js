@@ -107,9 +107,11 @@ router.post("/", verifyParticipant, async (req, res) => {
       });
     }
 
-    // Gunakan ?? supaya nilai 0 tetap valid
-    const maxTabSwitch = settings?.max_tab_switch ?? 1;
-    const maxBlur = settings?.max_blur ?? 1;
+    // Gunakan ?? supaya nilai 0 tetap valid, beri batas toleransi default yang wajar
+    const maxTabSwitch = settings?.max_tab_switch ?? 3;
+    const maxBlur = settings?.max_blur ?? 3;
+    const maxFullscreen = settings?.max_fullscreen ?? 3;
+    const maxDevtools = settings?.max_devtools ?? 3;
 
     // =====================================================
     // 4. Hitung violation berikutnya
@@ -160,25 +162,16 @@ router.post("/", verifyParticipant, async (req, res) => {
       shouldAutoSubmit = true;
     }
 
-    // Fullscreen exit langsung fatal
-    if (violationType === "fullscreen_exit") {
+    if (
+      violationType === "fullscreen_exit" &&
+      updateData.fullscreen_violations >= maxFullscreen
+    ) {
       shouldAutoSubmit = true;
     }
 
-    /*
-      DevTools:
-
-      Karena frontend DevTools detector tidak 100% akurat,
-      gue lebih saranin jangan langsung diskualifikasi pada
-      deteksi pertama.
-
-      Contoh: baru auto-submit setelah 2 violation.
-    */
-    const maxDevtoolsViolation = settings?.max_devtools ?? 2;
-
     if (
       violationType === "devtools" &&
-      updateData.devtools_violations >= maxDevtoolsViolation
+      updateData.devtools_violations >= maxDevtools
     ) {
       shouldAutoSubmit = true;
     }

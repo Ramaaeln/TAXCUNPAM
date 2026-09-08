@@ -41,7 +41,8 @@ export async function verifyParticipant(req, res, next) {
     req.user = {
       ...decoded,
       sessionId: sessionId,
-      attemptId: decoded.attemptId || sessionId,
+      attemptId: decoded.attemptId || decoded.attempt_id || sessionId,
+      quizId: decoded.quizId || decoded.quiz_id,
     };
 
     next();
